@@ -7,6 +7,7 @@ import { UpgradeModal } from './UpgradeModal'
 import { useAuth } from '../hooks/useAuth'
 import { useFeatureAccess } from '../hooks/useFeatureAccess'
 import TwelveDataService from '../services/TwelveDataService'
+import { enhanceSignalsWithStatus, getEnhancedStatusColor, type EnhancedSignal } from '../utils/signalStatus'
 import type { Database } from '../lib/supabase'
 
 type Signal = Database['public']['Tables']['signals']['Row']
@@ -39,6 +40,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [activeTab, setActiveTab] = useState<'signals' | 'performance' | 'subscribers' | 'manage'>('signals')
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false)
   const [marketData, setMarketData] = useState<MarketData[]>([])
+  const [enhancedSignals, setEnhancedSignals] = useState<EnhancedSignal[]>([])
+  const [currentGoldPrice, setCurrentGoldPrice] = useState<number>(0)
   const [isLoadingMarketData, setIsLoadingMarketData] = useState(false)
   const [dataSource, setDataSource] = useState<string>('loading...')
   const { signOut, user } = useAuth()
@@ -80,12 +83,14 @@ const Dashboard: React.FC<DashboardProps> = ({
         const goldQuote = await fetchGoldPrice()
         if (goldQuote) {
           setMarketData([goldQuote])
+          setCurrentGoldPrice(goldQuote.price)
         } else {
           // Final fallback to demo Gold data
+          const fallbackPrice = 2658.50
           setMarketData([
             {
               symbol: 'XAUUSD',
-              price: 2658.50,
+              price: fallbackPrice,
               change: 8.75,
               changePercent: 0.33,
               high: 2665.25,
@@ -94,14 +99,16 @@ const Dashboard: React.FC<DashboardProps> = ({
               timestamp: new Date().toISOString()
             }
           ])
+          setCurrentGoldPrice(fallbackPrice)
         }
       } catch (error) {
         console.error('Error fetching market data:', error)
         // Fallback to demo Gold data if Alpha Vantage fails
+        const fallbackPrice = 2658.50
         setMarketData([
           {
             symbol: 'XAUUSD',
-            price: 2658.50,
+            price: fallbackPrice,
             change: 8.75,
             changePercent: 0.33,
             high: 2665.25,
@@ -110,6 +117,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             timestamp: new Date().toISOString()
           }
         ])
+        setCurrentGoldPrice(fallbackPrice)
       } finally {
         setIsLoadingMarketData(false)
       }
@@ -122,6 +130,15 @@ const Dashboard: React.FC<DashboardProps> = ({
     return () => clearInterval(interval)
   }, [fetchGoldPrice])
 
+  // Enhance signals with real-time status calculation
+  useEffect(() => {
+    if (signals.length > 0 && currentGoldPrice > 0) {
+      const enhanced = enhanceSignalsWithStatus(signals, currentGoldPrice)
+      setEnhancedSignals(enhanced)
+      console.log(`📊 Enhanced ${enhanced.length} signals with current Gold price: $${currentGoldPrice}`)
+    }
+  }, [signals, currentGoldPrice])
+
   const refreshMarketData = async () => {
     setIsLoadingMarketData(true)
     try {
@@ -129,12 +146,14 @@ const Dashboard: React.FC<DashboardProps> = ({
       const goldQuote = await fetchGoldPrice()
       if (goldQuote) {
         setMarketData([goldQuote])
+        setCurrentGoldPrice(goldQuote.price)
       } else {
         // Final fallback to demo Gold data
+        const fallbackPrice = 2658.50
         setMarketData([
           {
             symbol: 'XAUUSD',
-            price: 2658.50,
+            price: fallbackPrice,
             change: 8.75,
             changePercent: 0.33,
             high: 2665.25,
@@ -143,6 +162,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             timestamp: new Date().toISOString()
           }
         ])
+        setCurrentGoldPrice(fallbackPrice)
       }
     } catch (error) {
       console.error('Error refreshing market data:', error)
@@ -402,12 +422,26 @@ const Dashboard: React.FC<DashboardProps> = ({
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {signals.slice(0, 10).map((signal) => (
-                        <tr key={signal.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">{signal.symbol}</div>
-                            <div className="text-sm text-gray-500">{signal.description.slice(0, 30)}...</div>
-                          </td>
+                      {(enhancedSignals.length > 0 ? enhancedSignals : signals).slice(0, 10).map((signal) => {
+                        const isEnhanced = 'calculated_status' in signal
+                        const displayStatus = isEnhanced && signal.calculated_status 
+                          ? signal.calculated_status.statusText 
+                          : signal.status.toUpperCase()
+                        const statusColorClass = isEnhanced && signal.calculated_status 
+                          ? getEnhancedStatusColor(signal.calculated_status)
+                          : getStatusColor(signal.status)
+                        
+                        return (
+                          <tr key={signal.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">{signal.symbol}</div>
+                              <div className="text-sm text-gray-500">{signal.description.slice(0, 30)}...</div>
+                              {isEnhanced && signal.calculated_status && currentGoldPrice > 0 && (
+                                <div className="text-xs text-blue-600 mt-1">
+                                  Current: ${currentGoldPrice.toFixed(2)}
+                                </div>
+                              )}
+                            </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getSignalColor(signal.type)}`}>
                               {signal.type.toUpperCase()}
@@ -421,9 +455,16 @@ const Dashboard: React.FC<DashboardProps> = ({
                             TP: {signal.take_profit}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(signal.status)}`}>
-                              {signal.status.toUpperCase()}
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColorClass}`}>
+                              {displayStatus}
                             </span>
+                            {isEnhanced && signal.calculated_status && signal.calculated_status.pnlPercentage !== undefined && (
+                              <div className={`text-xs mt-1 ${
+                                signal.calculated_status.isProfit ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {signal.calculated_status.pnlPercentage >= 0 ? '+' : ''}{signal.calculated_status.pnlPercentage.toFixed(1)}%
+                              </div>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getConfidenceColor(signal.confidence)}`}>
@@ -434,7 +475,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                             {formatTime(signal.created_at)}
                           </td>
                         </tr>
-                      ))}
+                        )
+                      })}
                     </tbody>
                   </table>
                 )}
