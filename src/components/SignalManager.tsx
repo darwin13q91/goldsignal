@@ -1,6 +1,8 @@
-import React, { useState } from 'react'
-import { Plus, Edit, Trash2, Activity, AlertCircle, CheckCircle, Clock } from 'lucide-react'
+import React, { useState, useEffect, useMemo } from 'react'
+import { Plus, Edit, Trash2 } from 'lucide-react'
 import { signalCRUDService } from '../services/SignalCRUDService'
+import TwelveDataService from '../services/TwelveDataService'
+import { enhanceSignalsWithStatus, getEnhancedStatusColor, type EnhancedSignal } from '../utils/signalStatus'
 import type { Database } from '../lib/supabase'
 
 type Signal = Database['public']['Tables']['signals']['Row']
@@ -15,6 +17,11 @@ export default function SignalManager({ signals, onSignalUpdate }: SignalManager
   const [showForm, setShowForm] = useState(false)
   const [editingSignal, setEditingSignal] = useState<Signal | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [enhancedSignals, setEnhancedSignals] = useState<EnhancedSignal[]>([])
+  const [currentGoldPrice, setCurrentGoldPrice] = useState<number>(0)
+
+  // Initialize Twelve Data service
+  const twelveDataService = useMemo(() => new TwelveDataService(), [])
 
   const [formData, setFormData] = useState<Partial<SignalInsert>>({
     symbol: 'XAUUSD',
@@ -25,6 +32,33 @@ export default function SignalManager({ signals, onSignalUpdate }: SignalManager
     confidence: 85,
     description: '',
   })
+
+  // Fetch current Gold price
+  useEffect(() => {
+    const fetchGoldPrice = async () => {
+      try {
+        const goldData = await twelveDataService.getGoldPrice()
+        if (goldData) {
+          setCurrentGoldPrice(goldData.price)
+        }
+      } catch (error) {
+        console.error('Error fetching Gold price:', error)
+      }
+    }
+
+    fetchGoldPrice()
+    // Update every 30 seconds
+    const interval = setInterval(fetchGoldPrice, 30000)
+    return () => clearInterval(interval)
+  }, [twelveDataService])
+
+  // Enhance signals with real-time status
+  useEffect(() => {
+    if (signals.length > 0 && currentGoldPrice > 0) {
+      const enhanced = enhanceSignalsWithStatus(signals, currentGoldPrice)
+      setEnhancedSignals(enhanced)
+    }
+  }, [signals, currentGoldPrice])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -94,19 +128,6 @@ export default function SignalManager({ signals, onSignalUpdate }: SignalManager
     })
   }
 
-  const getStatusIcon = (status: Signal['status']) => {
-    switch (status) {
-      case 'active':
-        return <Activity className="w-4 h-4 text-green-500" />
-      case 'closed':
-        return <CheckCircle className="w-4 h-4 text-blue-500" />
-      case 'pending':
-        return <Clock className="w-4 h-4 text-yellow-500" />
-      default:
-        return <AlertCircle className="w-4 h-4 text-gray-500" />
-    }
-  }
-
   const getResultColor = (result?: string) => {
     switch (result) {
       case 'win':
@@ -114,6 +135,19 @@ export default function SignalManager({ signals, onSignalUpdate }: SignalManager
       case 'loss':
         return 'text-red-600 bg-red-100'
       case 'breakeven':
+        return 'text-yellow-600 bg-yellow-100'
+      default:
+        return 'text-gray-600 bg-gray-100'
+    }
+  }
+
+  const getStatusColor = (status: Signal['status']) => {
+    switch (status) {
+      case 'active':
+        return 'text-green-600 bg-green-100'
+      case 'closed':
+        return 'text-blue-600 bg-blue-100'
+      case 'pending':
         return 'text-yellow-600 bg-yellow-100'
       default:
         return 'text-gray-600 bg-gray-100'
@@ -298,82 +332,101 @@ export default function SignalManager({ signals, onSignalUpdate }: SignalManager
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {signals.map((signal) => (
-                <tr key={signal.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className={`w-2 h-2 rounded-full mr-3 ${
-                        signal.type === 'buy' ? 'bg-green-500' : 'bg-red-500'
-                      }`} />
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {signal.symbol}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {signal.type.toUpperCase()} • {signal.confidence}%
+              {(enhancedSignals.length > 0 ? enhancedSignals : signals).map((signal) => {
+                const isEnhanced = 'calculated_status' in signal
+                const displayStatus = isEnhanced && signal.calculated_status 
+                  ? signal.calculated_status.statusText 
+                  : signal.status.toUpperCase()
+                const statusColorClass = isEnhanced && signal.calculated_status 
+                  ? getEnhancedStatusColor(signal.calculated_status)
+                  : getStatusColor(signal.status)
+                
+                return (
+                  <tr key={signal.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className={`w-2 h-2 rounded-full mr-3 ${
+                          signal.type === 'buy' ? 'bg-green-500' : 'bg-red-500'
+                        }`} />
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {signal.symbol}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {signal.type.toUpperCase()} • {signal.confidence}%
+                          </div>
+                          {isEnhanced && signal.calculated_status && currentGoldPrice > 0 && (
+                            <div className="text-xs text-blue-600 mt-1">
+                              Current: ${currentGoldPrice.toFixed(2)}
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div>Entry: {signal.entry_price}</div>
-                    <div>SL: {signal.stop_loss}</div>
-                    <div>TP: {signal.take_profit}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      {getStatusIcon(signal.status)}
-                      <span className="ml-2 text-sm text-gray-900 capitalize">
-                        {signal.status}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <div>Entry: {signal.entry_price}</div>
+                      <div>SL: {signal.stop_loss}</div>
+                      <div>TP: {signal.take_profit}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColorClass}`}>
+                        {displayStatus}
                       </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {signal.result ? (
-                      <div className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getResultColor(signal.result)}`}>
-                        {signal.result.toUpperCase()}
-                        {signal.pips_result && ` (${signal.pips_result > 0 ? '+' : ''}${signal.pips_result} pips)`}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-gray-500">-</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => handleEdit(signal)}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      
-                      {signal.status === 'active' && (
-                        <div className="flex space-x-1">
-                          <button
-                            onClick={() => handleCloseSignal(signal.id, 'win', 50)}
-                            className="text-green-600 hover:text-green-900 text-xs px-2 py-1 bg-green-100 rounded"
-                          >
-                            Win
-                          </button>
-                          <button
-                            onClick={() => handleCloseSignal(signal.id, 'loss', -30)}
-                            className="text-red-600 hover:text-red-900 text-xs px-2 py-1 bg-red-100 rounded"
-                          >
-                            Loss
-                          </button>
+                      {isEnhanced && signal.calculated_status && signal.calculated_status.pnlPercentage !== undefined && (
+                        <div className={`text-xs mt-1 ${
+                          signal.calculated_status.isProfit ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          {signal.calculated_status.pnlPercentage >= 0 ? '+' : ''}{signal.calculated_status.pnlPercentage.toFixed(1)}%
                         </div>
                       )}
-                      
-                      <button
-                        onClick={() => handleDelete(signal.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {(signal as Signal).result ? (
+                        <div className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getResultColor((signal as Signal).result)}`}>
+                          {(signal as Signal).result!.toUpperCase()}
+                          {(signal as Signal).pips_result && ` (${(signal as Signal).pips_result! > 0 ? '+' : ''}${(signal as Signal).pips_result} pips)`}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-500">-</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleEdit(signal as Signal)}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        
+                        {signal.status === 'active' && (
+                          <div className="flex space-x-1">
+                            <button
+                              onClick={() => handleCloseSignal(signal.id, 'win', 50)}
+                              className="text-green-600 hover:text-green-900 text-xs px-2 py-1 bg-green-100 rounded"
+                            >
+                              Win
+                            </button>
+                            <button
+                              onClick={() => handleCloseSignal(signal.id, 'loss', -30)}
+                              className="text-red-600 hover:text-red-900 text-xs px-2 py-1 bg-red-100 rounded"
+                            >
+                              Loss
+                            </button>
+                          </div>
+                        )}
+                        
+                        <button
+                          onClick={() => handleDelete(signal.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
