@@ -3,7 +3,9 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { TrendingUp, Users, DollarSign, Target, LogOut, User, Settings, Activity, RefreshCw } from 'lucide-react'
 import SignalManager from './SignalManager'
 import { SubscriberManager } from './SubscriberManager'
+import { UpgradeModal } from './UpgradeModal'
 import { useAuth } from '../hooks/useAuth'
+import { useFeatureAccess } from '../hooks/useFeatureAccess'
 import TwelveDataService from '../services/TwelveDataService'
 import type { Database } from '../lib/supabase'
 
@@ -35,10 +37,12 @@ const Dashboard: React.FC<DashboardProps> = ({
   userProfile
 }) => {
   const [activeTab, setActiveTab] = useState<'signals' | 'performance' | 'subscribers' | 'manage'>('signals')
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false)
   const [marketData, setMarketData] = useState<MarketData[]>([])
   const [isLoadingMarketData, setIsLoadingMarketData] = useState(false)
   const [dataSource, setDataSource] = useState<string>('loading...')
-  const { signOut } = useAuth()
+  const { signOut, user } = useAuth()
+  const { hasAccess } = useFeatureAccess()
 
   // Initialize Twelve Data service (broker-grade data)
   const twelveDataService = useMemo(() => new TwelveDataService(), [])
@@ -440,31 +444,33 @@ const Dashboard: React.FC<DashboardProps> = ({
         )}
 
         {activeTab === 'performance' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Signal Performance</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={performanceData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="profit" stroke="#3b82f6" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Subscription Distribution</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={subscriptionData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+          <>
+            {hasAccess('analytics') ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white rounded-xl shadow-sm p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Signal Performance</h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={performanceData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Line type="monotone" dataKey="profit" stroke="#3b82f6" strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                
+                <div className="bg-white rounded-xl shadow-sm p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Subscription Distribution</h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={subscriptionData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
@@ -478,10 +484,52 @@ const Dashboard: React.FC<DashboardProps> = ({
               </ResponsiveContainer>
             </div>
           </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl p-8 max-w-md mx-auto">
+                  <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Activity className="w-8 h-8 text-white" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-3">Premium Analytics</h3>
+                  <p className="text-gray-600 mb-6">
+                    Get detailed performance analytics, win rates, and profit tracking to optimize your trading strategy.
+                  </p>
+                  <button
+                    onClick={() => setIsUpgradeModalOpen(true)}
+                    className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-blue-600 hover:to-indigo-700 transition-all duration-200"
+                  >
+                    Upgrade to Premium
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {activeTab === 'subscribers' && (
-          <SubscriberManager currentUser={userProfile} />
+          <>
+            {hasAccess('subscriber_management') ? (
+              <SubscriberManager currentUser={userProfile} />
+            ) : (
+              <div className="text-center py-12">
+                <div className="bg-gradient-to-br from-purple-50 to-pink-100 rounded-xl p-8 max-w-md mx-auto">
+                  <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Users className="w-8 h-8 text-white" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-3">Subscriber Management</h3>
+                  <p className="text-gray-600 mb-6">
+                    Manage your subscriber base, view analytics, and grow your trading community with advanced tools.
+                  </p>
+                  <button
+                    onClick={() => setIsUpgradeModalOpen(true)}
+                    className="bg-gradient-to-r from-purple-500 to-pink-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-purple-600 hover:to-pink-700 transition-all duration-200"
+                  >
+                    Upgrade to VIP
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {activeTab === 'manage' && (
@@ -491,6 +539,13 @@ const Dashboard: React.FC<DashboardProps> = ({
           />
         )}
       </div>
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+        userEmail={user?.email}
+      />
     </div>
   )
 }
