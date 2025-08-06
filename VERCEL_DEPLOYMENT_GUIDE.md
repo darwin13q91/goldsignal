@@ -57,29 +57,32 @@ VITE_APP_URL=https://your-app.vercel.app
 
 3. **Import Git Repository**:
    - Select your GitHub account
-   - Choose your `signal-service` repository
+   - Choose your `goldsignal` repository
    - Click "Import"
 
-4. **Configure Build Settings**:
-   - **Framework Preset**: Vite
-   - **Build Command**: `npm run build`
-   - **Output Directory**: `dist`
-   - **Install Command**: `npm install`
+4. **Configure Build Settings** (Vercel auto-detects Vite):
+   - **Framework Preset**: Vite ✅ (auto-detected)
+   - **Build Command**: `npm run build` ✅ (auto-detected)
+   - **Output Directory**: `dist` ✅ (auto-detected)
+   - **Install Command**: `npm install` ✅ (auto-detected)
 
 5. **Add Environment Variables**:
    - Click "Environment Variables"
    - Add each variable from your `.env.production` file:
-     - `VITE_SUPABASE_URL`
-     - `VITE_SUPABASE_ANON_KEY`
-     - `VITE_TWELVE_DATA_API_KEY`
-     - `VITE_APP_NAME`
-     - `VITE_APP_URL`
+     ```
+     VITE_SUPABASE_URL = https://fcjprltbtthnvuaqqztc.supabase.co
+     VITE_SUPABASE_ANON_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+     VITE_TWELVE_DATA_API_KEY = 41b40be6b047497cbd627ccc8d74eb18
+     VITE_APP_NAME = Gold Signal Service
+     VITE_APP_URL = https://your-app.vercel.app
+     VITE_ENVIRONMENT = production
+     ```
 
 6. **Deploy**:
    - Click "Deploy"
    - Wait for build to complete (2-3 minutes)
 
-#### Option B: Deploy via Vercel CLI
+#### Option B: Deploy via Vercel CLI (Alternative)
 
 1. **Install Vercel CLI**:
    ```bash
@@ -93,16 +96,25 @@ VITE_APP_URL=https://your-app.vercel.app
 
 3. **Deploy**:
    ```bash
-   vercel
+   vercel --prod
    ```
 
-4. **Follow prompts**:
-   - Set up and deploy? `Y`
-   - Which scope? Select your account
-   - Link to existing project? `N`
-   - Project name: `signal-service`
-   - In which directory? `./` (current directory)
-   - Auto-detected settings? `Y`
+#### Option C: If You Get Runtime Errors
+
+If you encounter the "Function Runtimes must have a valid version" error, try this minimal approach:
+
+1. **Delete vercel.json temporarily**:
+   ```bash
+   rm vercel.json  # or delete the file manually
+   ```
+
+2. **Deploy without vercel.json**:
+   - Vercel will auto-detect everything
+   - The minimal `vercel.json` we have should work, but if not, deployment works fine without it
+
+3. **Redeploy**:
+   - Push changes to GitHub
+   - Vercel will automatically redeploy
 
 ### 4. 🔧 Post-Deployment Configuration
 
@@ -166,7 +178,16 @@ git push origin main
 
 ### Common Issues
 
-1. **Build Failures**:
+1. **"Function Runtimes must have a valid version" Error**:
+   ```bash
+   # Solution: Use minimal vercel.json or remove it entirely
+   # Vercel auto-detects Vite projects perfectly
+   
+   # Option 1: Keep minimal vercel.json (current setup)
+   # Option 2: Delete vercel.json completely - Vercel will auto-detect everything
+   ```
+
+2. **Build Failures**:
    ```bash
    # Check TypeScript errors locally
    npm run build
@@ -176,17 +197,17 @@ git push origin main
    git push
    ```
 
-2. **Environment Variables Not Working**:
+3. **Environment Variables Not Working**:
    - Ensure variables start with `VITE_` for client-side access
    - Check spelling in Vercel dashboard
    - Redeploy after adding variables
 
-3. **Supabase Connection Issues**:
+4. **Supabase Connection Issues**:
    - Verify URLs in environment variables
    - Check Supabase project status
    - Ensure API keys are correct
 
-4. **API Rate Limits**:
+5. **API Rate Limits**:
    - Monitor Twelve Data usage
    - Implement caching if needed
    - Consider upgrading API plan
