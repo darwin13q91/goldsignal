@@ -104,13 +104,11 @@ class TwelveDataService {
   // Get real-time Gold price from Twelve Data (broker-grade)
   async getGoldPrice(): Promise<MarketData> {
     if (!this.config.apiKey) {
-      console.log('🔑 No Twelve Data API key - using mock data')
-      return this.generateMockGoldData()
+      throw new Error('Twelve Data API key not configured')
     }
 
     if (!this.canMakeRequest()) {
-      console.log('📊 Twelve Data daily limit reached (800 calls) - using mock data')
-      return this.generateMockGoldData()
+      throw new Error('Twelve Data daily API limit reached (800 calls)')
     }
 
     try {
@@ -132,8 +130,7 @@ class TwelveDataService {
       // Check for API errors
       if (priceResponse.data.status === 'error') {
         console.error('🚫 Twelve Data API Error:', priceResponse.data.message)
-        console.log('🔄 Falling back to mock data')
-        return this.generateMockGoldData()
+        throw new Error(`Twelve Data API Error: ${priceResponse.data.message}`)
       }
 
       // Get quote data for additional info
@@ -176,15 +173,18 @@ class TwelveDataService {
         console.error('📋 Error response data:', axiosError.response?.data)
         console.error('📋 Error response status:', axiosError.response?.status)
       }
-      console.log('🔄 Falling back to mock data due to error')
-      return this.generateMockGoldData()
+      throw new Error(`Failed to fetch Gold price: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
   // Get historical data for technical analysis
   async getHistoricalData(interval: string = '1min', outputsize: number = 100): Promise<HistoricalDataPoint[]> {
-    if (!this.config.apiKey || !this.canMakeRequest()) {
-      return this.generateMockHistoricalData()
+    if (!this.config.apiKey) {
+      throw new Error('Twelve Data API key not configured')
+    }
+    
+    if (!this.canMakeRequest()) {
+      throw new Error('Twelve Data daily API limit reached (800 calls)')
     }
 
     try {
@@ -204,7 +204,7 @@ class TwelveDataService {
       const data = response.data as TwelveDataTimeSeriesResponse
       if (data.status === 'error') {
         console.error('🚫 Historical data error:', data.message)
-        return this.generateMockHistoricalData()
+        throw new Error(`Historical data API error: ${data.message}`)
       }
 
       console.log(`✅ Retrieved ${data.values?.length || 0} historical Gold data points`)
@@ -212,61 +212,8 @@ class TwelveDataService {
 
     } catch (error) {
       console.error('❌ Historical data error:', error)
-      return this.generateMockHistoricalData()
+      throw new Error(`Failed to fetch historical data: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
-  }
-
-  // Generate realistic mock Gold data (current market prices)
-  private generateMockGoldData(): MarketData {
-    // Current Gold price range (August 2025)
-    const basePrice = 2662.75
-    const volatility = 12 // ±$12 realistic daily range for Gold
-    const randomChange = (Math.random() - 0.5) * volatility * 2
-    const currentPrice = basePrice + randomChange
-
-    const change = (Math.random() - 0.5) * 8 // ±$8 daily change
-    const changePercent = (change / currentPrice) * 100
-
-    const high = currentPrice + Math.random() * 5
-    const low = currentPrice - Math.random() * 5
-
-    console.log(`📊 Generated realistic Gold mock data: $${currentPrice.toFixed(2)} (${change > 0 ? '+' : ''}${change.toFixed(2)})`)
-
-    return {
-      symbol: 'XAUUSD',
-      price: parseFloat(currentPrice.toFixed(2)),
-      change: parseFloat(change.toFixed(2)),
-      changePercent: parseFloat(changePercent.toFixed(2)),
-      high: parseFloat(high.toFixed(2)),
-      low: parseFloat(low.toFixed(2)),
-      volume: Math.floor(Math.random() * 50000) + 100000, // Realistic volume
-      timestamp: new Date().toISOString()
-    }
-  }
-
-  private generateMockHistoricalData(): HistoricalDataPoint[] {
-    const data: HistoricalDataPoint[] = []
-    const now = new Date()
-    
-    for (let i = 99; i >= 0; i--) {
-      const time = new Date(now.getTime() - i * 60 * 1000) // 1-minute intervals
-      const basePrice = 2662.75 + (Math.random() - 0.5) * 20
-      const open = basePrice + (Math.random() - 0.5) * 2
-      const close = basePrice + (Math.random() - 0.5) * 2
-      const high = Math.max(open, close) + Math.random() * 2
-      const low = Math.min(open, close) - Math.random() * 2
-
-      data.push({
-        datetime: time.toISOString(),
-        open: open.toFixed(2),
-        high: high.toFixed(2),
-        low: low.toFixed(2),
-        close: close.toFixed(2),
-        volume: (Math.random() * 1000 + 500).toFixed(0)
-      })
-    }
-
-    return data
   }
 
   // Get current API usage stats

@@ -80,11 +80,11 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
         throw new Error('Stripe failed to load');
       }
       
-      // For demo purposes, we'll show an alert. In production, you'd redirect to Stripe Checkout
-      if (!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY === 'pk_live_your_key_here') {
-        alert(`Demo Mode: Would redirect to Stripe Checkout for ${plan.name} plan ($${plan.price}/month)\\n\\nTo enable payments:\\n1. Set up Stripe account\\n2. Add VITE_STRIPE_PUBLISHABLE_KEY to environment\\n3. Create products in Stripe dashboard`);
-        setLoading(null);
-        return;
+      // Validate Stripe configuration
+      if (!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 
+          import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY === 'pk_test_your_test_key_here' ||
+          import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY === 'pk_live_your_key_here') {
+        throw new Error('Stripe configuration incomplete. Please contact support.');
       }
       
       // Redirect to Stripe Checkout
@@ -94,7 +94,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
           quantity: 1 
         }],
         mode: 'subscription',
-        successUrl: `${window.location.origin}/success?plan=${plan.id}`,
+        successUrl: `${window.location.origin}/success?session_id={CHECKOUT_SESSION_ID}&plan=${plan.id}`,
         cancelUrl: `${window.location.origin}/pricing`,
         customerEmail: userEmail,
         billingAddressCollection: 'required'

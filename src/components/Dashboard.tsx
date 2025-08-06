@@ -85,39 +85,16 @@ const Dashboard: React.FC<DashboardProps> = ({
           setMarketData([goldQuote])
           setCurrentGoldPrice(goldQuote.price)
         } else {
-          // Final fallback to demo Gold data
-          const fallbackPrice = 2658.50
-          setMarketData([
-            {
-              symbol: 'XAUUSD',
-              price: fallbackPrice,
-              change: 8.75,
-              changePercent: 0.33,
-              high: 2665.25,
-              low: 2652.00,
-              volume: 0,
-              timestamp: new Date().toISOString()
-            }
-          ])
-          setCurrentGoldPrice(fallbackPrice)
+          // No fallback data - show loading or error state
+          console.warn('No market data available')
+          setMarketData([])
+          setCurrentGoldPrice(0)
         }
       } catch (error) {
         console.error('Error fetching market data:', error)
-        // Fallback to demo Gold data if Alpha Vantage fails
-        const fallbackPrice = 2658.50
-        setMarketData([
-          {
-            symbol: 'XAUUSD',
-            price: fallbackPrice,
-            change: 8.75,
-            changePercent: 0.33,
-            high: 2665.25,
-            low: 2652.00,
-            volume: 0,
-            timestamp: new Date().toISOString()
-          }
-        ])
-        setCurrentGoldPrice(fallbackPrice)
+        // No fallback data - show error state
+        setMarketData([])
+        setCurrentGoldPrice(0)
       } finally {
         setIsLoadingMarketData(false)
       }
@@ -148,21 +125,10 @@ const Dashboard: React.FC<DashboardProps> = ({
         setMarketData([goldQuote])
         setCurrentGoldPrice(goldQuote.price)
       } else {
-        // Final fallback to demo Gold data
-        const fallbackPrice = 2658.50
-        setMarketData([
-          {
-            symbol: 'XAUUSD',
-            price: fallbackPrice,
-            change: 8.75,
-            changePercent: 0.33,
-            high: 2665.25,
-            low: 2652.00,
-            volume: 0,
-            timestamp: new Date().toISOString()
-          }
-        ])
-        setCurrentGoldPrice(fallbackPrice)
+        // No fallback data - show loading or error state
+        console.warn('No market data available')
+        setMarketData([])
+        setCurrentGoldPrice(0)
       }
     } catch (error) {
       console.error('Error refreshing market data:', error)
@@ -185,12 +151,12 @@ const Dashboard: React.FC<DashboardProps> = ({
     confidence: signal.confidence
   }))
 
-  // Subscription distribution data (demo)
+  // Calculate subscription distribution from actual data
+  // Note: This would require fetching all user profiles in a production system
   const subscriptionData = [
-    { name: 'Free', value: 45, color: '#8884d8' },
-    { name: 'Basic', value: 25, color: '#82ca9d' },
-    { name: 'Premium', value: 20, color: '#ffc658' },
-    { name: 'VIP', value: 10, color: '#ff7c7c' }
+    { name: 'Free', value: 0, color: '#8884d8' },
+    { name: 'Premium', value: 0, color: '#82ca9d' },
+    { name: 'VIP', value: 0, color: '#ffc658' }
   ]
 
   // Stats cards data
