@@ -45,9 +45,23 @@ export interface PayMongoWebhookEvent {
 class PayMongoService {
   constructor() {
     console.log('PayMongo Service initialized (using server-side endpoints)');
+    
+    // Debug method for browser console testing
+    (window as unknown as Window & { testPayMongo: () => string }).testPayMongo = () => {
+      console.log('🧪 Testing PayMongo environment...');
+      console.log('🧪 VITE_PAYMONGO_SECRET_KEY exists:', !!import.meta.env.VITE_PAYMONGO_SECRET_KEY);
+      console.log('🧪 VITE_PAYMONGO_PUBLIC_KEY exists:', !!import.meta.env.VITE_PAYMONGO_PUBLIC_KEY);
+      console.log('🧪 Hostname:', window.location.hostname);
+      console.log('🧪 Full import.meta.env:', import.meta.env);
+      return 'Test completed - check console for results';
+    };
   }
 
   async createCheckoutSession(plan: 'premium' | 'vip', userId?: string): Promise<string> {
+    console.log('🚨 DEBUG: createCheckoutSession called - START');
+    console.log('🚨 DEBUG: plan:', plan);
+    console.log('🚨 DEBUG: userId:', userId);
+    
     try {
       console.log('🚨 DEBUG: Creating PayMongo checkout session for plan:', plan, 'userId:', userId);
       console.log('🚨 DEBUG: Current hostname:', window.location.hostname);
@@ -104,12 +118,17 @@ class PayMongoService {
     // DEVELOPMENT ONLY - This should never be used in production
     console.warn('⚠️  WARNING: Using direct PayMongo API call from browser (DEVELOPMENT ONLY)');
     
+    console.log('🚨 DEBUG: createCheckoutSessionDirect called - START');
+    console.log('🚨 DEBUG: import.meta.env:', import.meta.env);
+    
     const secretKey = import.meta.env.VITE_PAYMONGO_SECRET_KEY;
     console.log('🚨 DEBUG: Secret key exists?', !!secretKey);
     console.log('🚨 DEBUG: Secret key preview:', secretKey ? secretKey.substring(0, 10) + '...' : 'undefined');
     
     if (!secretKey) {
-      throw new Error('PayMongo secret key not found in environment variables');
+      const errorMsg = 'PayMongo secret key not found in environment variables';
+      console.error('❌ DEBUG:', errorMsg);
+      throw new Error(errorMsg);
     }
 
     const planDetails = {
