@@ -46,18 +46,11 @@ class PayMongoService {
   constructor() {
     console.log('🚨 CONSTRUCTOR: PayMongo Service initialized (using server-side endpoints)');
     console.log('🚨 CONSTRUCTOR: Environment check - hostname:', window.location.hostname);
-    console.log('🚨 CONSTRUCTOR: Environment variables available:', {
-      hasSecretKey: !!import.meta.env.VITE_PAYMONGO_SECRET_KEY,
-      hasPublicKey: !!import.meta.env.VITE_PAYMONGO_PUBLIC_KEY
-    });
     
     // Debug method for browser console testing
     (window as unknown as Window & { testPayMongo: () => string }).testPayMongo = () => {
       console.log('🧪 Testing PayMongo environment...');
-      console.log('🧪 VITE_PAYMONGO_SECRET_KEY exists:', !!import.meta.env.VITE_PAYMONGO_SECRET_KEY);
-      console.log('🧪 VITE_PAYMONGO_PUBLIC_KEY exists:', !!import.meta.env.VITE_PAYMONGO_PUBLIC_KEY);
       console.log('🧪 Hostname:', window.location.hostname);
-      console.log('🧪 Full import.meta.env:', import.meta.env);
       return 'Test completed - check console for results';
     };
   }
@@ -152,9 +145,15 @@ class PayMongoService {
     console.warn('⚠️  WARNING: Using direct PayMongo API call from browser (DEVELOPMENT ONLY)');
     
     console.log('🚨 DEBUG: createCheckoutSessionDirect called - START');
-    console.log('🚨 DEBUG: import.meta.env:', import.meta.env);
     
-    const secretKey = import.meta.env.VITE_PAYMONGO_SECRET_KEY;
+    // Try to get the secret key from environment - using try/catch to handle TypeScript issues
+    let secretKey: string | undefined;
+    try {
+      secretKey = (import.meta as { env: Record<string, string> }).env.VITE_PAYMONGO_SECRET_KEY;
+    } catch (error) {
+      console.error('❌ DEBUG: Could not access import.meta.env:', error);
+    }
+    
     console.log('🚨 DEBUG: Secret key exists?', !!secretKey);
     console.log('🚨 DEBUG: Secret key preview:', secretKey ? secretKey.substring(0, 10) + '...' : 'undefined');
     
