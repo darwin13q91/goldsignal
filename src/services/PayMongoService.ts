@@ -148,7 +148,7 @@ class PayMongoService {
             'grab_pay',
             'paymaya'
           ],
-          success_url: `${window.location.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}&plan=${plan}`,
+          success_url: `${window.location.origin}/success?session_id={CHECKOUT_SESSION_ID}&plan=${plan}`,
           cancel_url: `${window.location.origin}/pricing`,
           description: `${selectedPlan.name} subscription`,
           metadata: {
