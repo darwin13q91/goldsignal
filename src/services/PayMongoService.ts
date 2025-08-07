@@ -82,21 +82,16 @@ class PayMongoService {
           throw new Error(errorData.error || `Server error: HTTP ${response.status}`);
         }
       } catch (error) {
-        if (error instanceof Error && error.message === 'API_NOT_FOUND') {
-          console.log('🚨 DEBUG: API_NOT_FOUND error caught, checking development mode...');
-          throw error;
-        }
+        console.log('🚨 DEBUG: Server-side API call failed, error:', error);
+        console.log('🚨 DEBUG: Checking if in development mode for fallback...');
         
-        console.log('🚨 DEBUG: Server-side API unavailable, error:', error);
-        console.log('🚨 DEBUG: Checking if in development mode...');
-        
-        // Development fallback - only use if we detect we're in development
+        // Development fallback - always use if we detect we're in development
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-          console.log('✅ DEBUG: Development mode detected, using direct API call (NOT SECURE FOR PRODUCTION)');
+          console.log('✅ DEBUG: Development mode detected, using direct API call fallback (NOT SECURE FOR PRODUCTION)');
           return await this.createCheckoutSessionDirect(plan, userId);
         }
         
-        console.error('❌ DEBUG: Not in development mode, throwing error:', error);
+        console.error('❌ DEBUG: Not in development mode, cannot use fallback. Error:', error);
         throw error;
       }
     } catch (error) {
