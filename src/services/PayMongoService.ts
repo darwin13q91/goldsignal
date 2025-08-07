@@ -67,7 +67,8 @@ class PayMongoService {
       console.log('🚨 DEBUG: Current hostname:', window.location.hostname);
       console.log('🚨 DEBUG: Is development?', window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
       
-      // Try server-side API endpoint first
+      // Try server-side API endpoint first, but always fallback in development
+      let serverError = null;
       try {
         console.log('🚨 DEBUG: Attempting server-side API...');
         const response = await fetch('/api/create-checkout-session', {
@@ -102,12 +103,18 @@ class PayMongoService {
             errorData = { error: `HTTP ${response.status}: ${errorText}` };
           }
           
-          // Always throw an error to trigger fallback, regardless of status code
-          throw new Error(errorData.error || `Server error: HTTP ${response.status}`);
+          // Store error for potential fallback
+          serverError = new Error(errorData.error || `Server error: HTTP ${response.status}`);
         }
-      } catch (error) {
-        console.log('🚨 DEBUG: Server-side API call failed, error:', error);
-        console.log('🚨 DEBUG: Error message:', error instanceof Error ? error.message : String(error));
+      } catch (fetchError) {
+        console.error('❌ DEBUG: Fetch error:', fetchError);
+        serverError = fetchError instanceof Error ? fetchError : new Error(String(fetchError));
+      }
+
+      // If we have a server error, try fallback in development
+      if (serverError) {
+        console.log('🚨 DEBUG: Server-side API call failed, error:', serverError);
+        console.log('🚨 DEBUG: Error message:', serverError.message);
         console.log('🚨 DEBUG: Checking if in development mode for fallback...');
         console.log('🚨 DEBUG: window.location.hostname:', window.location.hostname);
         console.log('🚨 DEBUG: Is localhost?', window.location.hostname === 'localhost');
@@ -119,9 +126,12 @@ class PayMongoService {
           return await this.createCheckoutSessionDirect(plan, userId);
         }
         
-        console.error('❌ DEBUG: Not in development mode, cannot use fallback. Error:', error);
-        throw error;
+        console.error('❌ DEBUG: Not in development mode, cannot use fallback. Throwing server error:', serverError);
+        throw serverError;
       }
+
+      // This should never be reached, but just in case
+      throw new Error('Unexpected error: no server response and no fallback triggered');
     } catch (error) {
       console.error('❌ DEBUG: Error in createCheckoutSession outer try-catch:', error);
       console.error('❌ DEBUG: Error creating PayMongo checkout session:', error);
