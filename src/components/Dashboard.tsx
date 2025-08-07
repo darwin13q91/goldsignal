@@ -75,6 +75,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [currentGoldPrice, setCurrentGoldPrice] = useState<number>(0)
   const [isLoadingMarketData, setIsLoadingMarketData] = useState(false)
   const [dataSource, setDataSource] = useState<string>('loading...')
+  const [apiQuotaExhausted, setApiQuotaExhausted] = useState(false) // Track quota status
   const { signOut, user } = useAuth()
   const { hasAccess } = useFeatureAccess()
 
@@ -86,6 +87,13 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   // Fetch Gold price using Twelve Data (800 calls/day free)
   const fetchGoldPrice = useCallback(async (): Promise<MarketData | null> => {
+    // Don't fetch if quota is exhausted
+    if (apiQuotaExhausted) {
+      console.log('🚫 API quota exhausted, skipping Gold price fetch')
+      setDataSource('API Quota Exhausted - Wait until tomorrow')
+      return null
+    }
+
     console.log('🏦 Fetching broker-grade XAUUSD data from Twelve Data...')
     
     try {
@@ -103,10 +111,22 @@ const Dashboard: React.FC<DashboardProps> = ({
       
     } catch (error) {
       console.error('❌ Error fetching Gold data:', error)
-      setDataSource('Error - Mock Data Fallback')
+      
+      // Check for quota exhaustion
+      if (error instanceof Error && 
+          (error.message.includes('quota exhausted') || 
+           error.message.includes('API credits') || 
+           error.message.includes('daily limit'))) {
+        console.log('💰 Detected API quota exhaustion - stopping further requests')
+        setApiQuotaExhausted(true)
+        setDataSource('API Quota Exhausted (800/day) - Upgrade or wait until tomorrow')
+      } else {
+        setDataSource('Error - Mock Data Fallback')
+      }
+      
       return null
     }
-  }, [twelveDataService])
+  }, [twelveDataService, apiQuotaExhausted])
 
   // Fetch market data on component mount
   useEffect(() => {
@@ -136,10 +156,24 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     fetchMarketData()
     
-    // Refresh market data every 30 seconds
-    const interval = setInterval(fetchMarketData, 30000)
-    return () => clearInterval(interval)
-  }, [fetchGoldPrice])
+    // Only set interval if quota is not exhausted
+    if (!apiQuotaExhausted) {
+      // Refresh market data every 30 seconds
+      const interval = setInterval(() => {
+        // Check quota status before each interval call
+        if (!apiQuotaExhausted) {
+          fetchMarketData()
+        } else {
+          console.log('🛑 Stopping market data interval due to quota exhaustion')
+          clearInterval(interval)
+        }
+      }, 30000)
+      
+      return () => clearInterval(interval)
+    } else {
+      console.log('🚫 Not starting market data interval - quota exhausted')
+    }
+  }, [fetchGoldPrice, apiQuotaExhausted])
 
   // Enhance signals with real-time status calculation
   useEffect(() => {
@@ -151,6 +185,12 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [signals, currentGoldPrice])
 
   const refreshMarketData = async () => {
+    // Don't refresh if quota is exhausted
+    if (apiQuotaExhausted) {
+      console.log('🚫 Cannot refresh - API quota exhausted')
+      return
+    }
+
     setIsLoadingMarketData(true)
     try {
       // Use Twelve Data for broker-grade XAUUSD data
