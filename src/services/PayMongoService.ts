@@ -107,7 +107,11 @@ class PayMongoService {
         }
       } catch (error) {
         console.log('🚨 DEBUG: Server-side API call failed, error:', error);
+        console.log('🚨 DEBUG: Error message:', error instanceof Error ? error.message : String(error));
         console.log('🚨 DEBUG: Checking if in development mode for fallback...');
+        console.log('🚨 DEBUG: window.location.hostname:', window.location.hostname);
+        console.log('🚨 DEBUG: Is localhost?', window.location.hostname === 'localhost');
+        console.log('🚨 DEBUG: Is 127.0.0.1?', window.location.hostname === '127.0.0.1');
         
         // Development fallback - always use if we detect we're in development
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
@@ -119,6 +123,7 @@ class PayMongoService {
         throw error;
       }
     } catch (error) {
+      console.error('❌ DEBUG: Error in createCheckoutSession outer try-catch:', error);
       console.error('❌ DEBUG: Error creating PayMongo checkout session:', error);
       throw error;
     }
