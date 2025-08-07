@@ -42,6 +42,15 @@ export interface PayMongoWebhookEvent {
   };
 }
 
+export interface PayMongoVerifiedSession {
+  id: string;
+  status: string;
+  amount: number;
+  currency: string;
+  customer_email?: string;
+  payment_method?: string;
+}
+
 class PayMongoService {
   constructor() {
     console.log('🚨 CONSTRUCTOR: PayMongo Service initialized (using server-side endpoints)');
@@ -124,7 +133,7 @@ class PayMongoService {
             'grab_pay',
             'paymaya'
           ],
-          success_url: `${window.location.origin}/success?session_id={CHECKOUT_SESSION_ID}&plan=${plan}`,
+          success_url: `${window.location.origin}/success?session_id={checkout_session_id}&plan=${plan}`,
           cancel_url: `${window.location.origin}/pricing`,
           description: `${selectedPlan.name} subscription`,
           metadata: {
@@ -296,6 +305,63 @@ class PayMongoService {
         popular: false
       }
     };
+  }
+
+  // ✅ NEW: Direct client-side session verification
+  async verifyCheckoutSession(sessionId: string): Promise<{ success: boolean; session?: PayMongoVerifiedSession; error?: string }> {
+    try {
+      console.log('🔍 VERIFICATION: Starting PayMongo session verification for:', sessionId);
+      
+      const HARDCODED_SECRET_KEY = 'sk_test_g8DL2qHp5axtaSqVQymTTb3b'; // Same as checkout
+      
+      const response = await fetch(`https://api.paymongo.com/v1/checkout_sessions/${sessionId}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${btoa(HARDCODED_SECRET_KEY + ':')}`
+        }
+      });
+
+      console.log('🔍 VERIFICATION: PayMongo API response status:', response.status);
+      console.log('🔍 VERIFICATION: PayMongo API response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('🚨 VERIFICATION: PayMongo API error response:', errorText);
+        throw new Error(`PayMongo API error: ${response.status} ${response.statusText}`);
+      }
+
+      const sessionData = await response.json();
+      console.log('🔍 VERIFICATION: PayMongo session data:', JSON.stringify(sessionData, null, 2));
+
+      const session = sessionData.data;
+      const isCompleted = session.attributes.status === 'paid';
+      const amount = session.attributes.line_items?.[0]?.amount || 0;
+      
+      console.log('🔍 VERIFICATION: Session status:', session.attributes.status);
+      console.log('🔍 VERIFICATION: Is completed:', isCompleted);
+      console.log('🔍 VERIFICATION: Amount:', amount);
+
+      return {
+        success: isCompleted,
+        session: {
+          id: session.id,
+          status: session.attributes.status,
+          amount: amount,
+          currency: session.attributes.line_items?.[0]?.currency || 'PHP',
+          customer_email: session.attributes.customer_details?.email,
+          payment_method: session.attributes.payments?.[0]?.attributes?.payment_method?.type
+        }
+      };
+
+    } catch (error) {
+      console.error('🚨 VERIFICATION: Verification failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Verification failed'
+      };
+    }
   }
 }
 

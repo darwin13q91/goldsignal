@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, XCircle, Clock, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useLoadingWithTimeout } from '../hooks/useLoadingWithTimeout';
+import { payMongoService } from '../services/PayMongoService';
+import { supabase } from '../lib/supabase';
 
 export const PaymentSuccess: React.FC = () => {
   const navigate = useNavigate();
@@ -29,24 +31,44 @@ export const PaymentSuccess: React.FC = () => {
 
       await paymentVerification.executeWithLoading(
         async () => {
-          const response = await fetch('/api/verify-paymongo-session', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              session_id: sessionId,
-              user_id: user?.id
-            })
-          });
-
-          const result = await response.json();
+          console.log('🔍 SUCCESS PAGE: Starting client-side PayMongo verification for session:', sessionId);
           
-          if (!result.success) {
-            throw new Error(result.error || 'Payment verification failed. Please contact support.');
+          // ✅ NEW: Use client-side PayMongo verification instead of failing server API
+          const verificationResult = await payMongoService.verifyCheckoutSession(sessionId);
+          
+          if (!verificationResult.success) {
+            throw new Error(verificationResult.error || 'Payment verification failed. Please contact support.');
           }
 
-          return result;
+          console.log('✅ SUCCESS PAGE: PayMongo verification successful:', verificationResult.session);
+
+          // Update user subscription in Supabase
+          if (user?.id) {
+            const subscriptionData = {
+              is_premium: true,
+              plan_type: planType || 'premium',
+              subscription_status: 'active',
+              payment_provider: 'paymongo',
+              payment_session_id: sessionId,
+              updated_at: new Date().toISOString()
+            };
+
+            console.log('🔍 SUCCESS PAGE: Updating user subscription:', subscriptionData);
+
+            const { error: updateError } = await supabase
+              .from('users')
+              .update(subscriptionData)
+              .eq('id', user.id);
+
+            if (updateError) {
+              console.error('🚨 SUCCESS PAGE: Failed to update user subscription:', updateError);
+              throw new Error('Subscription update failed. Please contact support.');
+            }
+
+            console.log('✅ SUCCESS PAGE: User subscription updated successfully');
+          }
+
+          return verificationResult;
         },
         'Payment verification failed. Please contact support.'
       );
@@ -55,7 +77,7 @@ export const PaymentSuccess: React.FC = () => {
     // Add a small delay for better UX
     const timer = setTimeout(processPayment, 2000);
     return () => clearTimeout(timer);
-  }, [sessionId, user, paymentVerification]); // Added paymentVerification to fix dependency warning
+  }, [sessionId, user, paymentVerification, planType]); // Added paymentVerification and planType to fix dependency warning
 
   const handleBackToDashboard = () => {
     navigate('/');
