@@ -48,9 +48,9 @@ export default function SignalManager({ signals, onSignalUpdate }: SignalManager
     }
 
     fetchGoldPrice()
-    // Update every 30 seconds
-    const interval = setInterval(fetchGoldPrice, 30000)
-    return () => clearInterval(interval)
+    // EMERGENCY MODE: All intervals disabled to prevent API calls and console spam
+    // const interval = setInterval(fetchGoldPrice, 30000)
+    // return () => clearInterval(interval)
   }, [twelveDataService])
 
   // Enhance signals with real-time status

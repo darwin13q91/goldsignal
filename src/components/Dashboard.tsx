@@ -194,6 +194,11 @@ const Dashboard: React.FC<DashboardProps> = ({
     // Initial fetch
     fetchMarketData()
     
+    // EMERGENCY MODE: All intervals disabled to prevent API calls and console spam
+    // Intervals are completely disabled while in emergency mode
+    console.log('🚨 EMERGENCY MODE: Market data intervals disabled to prevent API quota burning')
+    
+    /*
     // Only set interval if quota is not exhausted
     if (!apiQuotaExhausted && !twelveDataService.isQuotaExhausted()) {
       console.log('🔄 Starting market data interval (30s)')
@@ -212,6 +217,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     } else {
       console.log('🚫 Not starting market data interval - quota exhausted')
     }
+    */
     
     // Cleanup function
     return () => {

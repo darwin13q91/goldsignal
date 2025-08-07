@@ -51,13 +51,14 @@ export const useSignalMonitor = ({ signals, onSignalUpdate }: SignalMonitorProps
   }, [signals, onSignalUpdate]);
 
   useEffect(() => {
+    // EMERGENCY MODE: All intervals disabled to prevent API calls and console spam
     // Check signals every 30 seconds
-    const interval = setInterval(checkSignalStatus, 30000);
+    // const interval = setInterval(checkSignalStatus, 30000);
     
-    // Initial check
-    checkSignalStatus();
+    // Initial check - also disabled in emergency mode
+    // checkSignalStatus();
     
-    return () => clearInterval(interval);
+    // return () => clearInterval(interval);
   }, [checkSignalStatus]);
 
   return null; // This is a monitoring hook, no UI
