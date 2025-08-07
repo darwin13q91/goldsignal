@@ -6,6 +6,15 @@ type SignalInsert = Database['public']['Tables']['signals']['Insert']
 type SignalUpdate = Database['public']['Tables']['signals']['Update']
 
 class SignalCRUDService {
+  private abortController: AbortController | null = null
+
+  // Cancel any ongoing requests
+  cancelRequests() {
+    if (this.abortController) {
+      this.abortController.abort()
+      this.abortController = null
+    }
+  }
   // Create new signal
   async createSignal(signalData: SignalInsert): Promise<Signal | null> {
     try {
@@ -59,12 +68,19 @@ class SignalCRUDService {
     }
   ): Promise<{ signals: Signal[], count: number }> {
     try {
+      // Cancel any existing request
+      this.cancelRequests()
+      
+      // Create new abort controller for this request
+      this.abortController = new AbortController()
+      
       const start = (page - 1) * limit
       const end = start + limit - 1
 
       let query = supabase
         .from('signals')
         .select('*', { count: 'exact' })
+        .abortSignal(this.abortController.signal)
 
       // Apply filters
       if (filters?.symbol) {
@@ -81,10 +97,28 @@ class SignalCRUDService {
         .range(start, end)
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        // Don't throw error if it's just a request cancellation
+        if (error.message?.includes('aborted')) {
+          console.log('Signal fetch request was cancelled')
+          return { signals: [], count: 0 }
+        }
+        throw error
+      }
+      
+      // Clear abort controller on success
+      this.abortController = null
+      
       return { signals: data || [], count: count || 0 }
     } catch (error) {
       console.error('Error fetching signals:', error)
+      
+      // Don't log cancelled requests as errors
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Signal fetch was cancelled')
+        return { signals: [], count: 0 }
+      }
+      
       return { signals: [], count: 0 }
     }
   }
