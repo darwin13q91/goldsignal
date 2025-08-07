@@ -6,6 +6,7 @@ import { SubscriberManager } from './SubscriberManager'
 import { UpgradeModal } from './UpgradeModal'
 import { NotificationCenter } from './NotificationCenter'
 import { UserProfileSettings } from './UserProfileSettings'
+import { TradingDashboard } from './TradingDashboard'
 import { useAuth } from '../hooks/useAuth'
 import { useFeatureAccess } from '../hooks/useFeatureAccess'
 import { useAdminAccess } from '../hooks/useAdminAccess'
@@ -69,7 +70,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   hasTimedOut,
   onRetryLoading
 }) => {
-  const [activeTab, setActiveTab] = useState<'signals' | 'performance' | 'subscribers' | 'manage' | 'profile'>('signals')
+  const [activeTab, setActiveTab] = useState<'signals' | 'performance' | 'subscribers' | 'manage' | 'profile' | 'trading'>('signals')
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false)
   const [marketData, setMarketData] = useState<MarketData[]>([])
   const [enhancedSignals, setEnhancedSignals] = useState<EnhancedSignal[]>([])
@@ -392,13 +393,16 @@ const Dashboard: React.FC<DashboardProps> = ({
             {[
               { id: 'signals', label: 'Signals', icon: Target },
               { id: 'performance', label: 'Performance', icon: TrendingUp },
-              { id: 'subscribers', label: 'Subscribers', icon: Users },
+              ...(hasAccess('subscriber_management') ? [
+                { id: 'subscribers', label: 'Subscribers', icon: Users },
+              ] : []),
               { id: 'manage', label: 'Manage Signals', icon: Settings },
+              { id: 'trading', label: 'Auto-Trading', icon: Activity },
               { id: 'profile', label: 'Profile', icon: User },
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as 'signals' | 'performance' | 'subscribers' | 'manage' | 'profile')}
+                onClick={() => setActiveTab(tab.id as 'signals' | 'performance' | 'subscribers' | 'manage' | 'profile' | 'trading')}
                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors ${
                   activeTab === tab.id
                     ? 'bg-blue-600 text-white'
@@ -862,6 +866,10 @@ const Dashboard: React.FC<DashboardProps> = ({
             signals={signals} 
             onSignalUpdate={onSignalUpdate}
           />
+        )}
+
+        {activeTab === 'trading' && (
+          <TradingDashboard />
         )}
 
         {activeTab === 'profile' && (

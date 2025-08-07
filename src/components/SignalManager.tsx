@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { Plus, Edit, Trash2 } from 'lucide-react'
 import { signalCRUDService } from '../services/SignalCRUDService'
 import { signalAlertService } from '../services/SignalAlertService'
+import { brokerIntegrationService } from '../services/BrokerIntegrationService'
+import type { TradingAccount } from '../services/BrokerIntegrationService'
 import TwelveDataService from '../services/TwelveDataService'
 import { enhanceSignalsWithStatus, getEnhancedStatusColor, type EnhancedSignal } from '../utils/signalStatus'
 import type { Database } from '../lib/supabase'
@@ -73,6 +75,18 @@ export default function SignalManager({ signals, onSignalUpdate }: SignalManager
         // Send alerts for new signals
         if (newSignal) {
           signalAlertService.sendNewSignalAlert(newSignal)
+          
+          // Trigger auto-trading for users with active trading accounts
+          try {
+            console.log('🎯 Triggering auto-trades for new signal:', newSignal.symbol)
+            // Note: This would get all users with active trading accounts in a real implementation
+            // For now, we'll just log that auto-trading is available
+            const allTradingAccounts: TradingAccount[] = [] // TODO: Implement getAllActiveTradingAccounts()
+            await brokerIntegrationService.executeSignalAutoTrade(newSignal, allTradingAccounts)
+          } catch (autoTradeError) {
+            console.error('Error executing auto-trades:', autoTradeError)
+            // Don't fail signal creation if auto-trading fails
+          }
         }
       }
       
