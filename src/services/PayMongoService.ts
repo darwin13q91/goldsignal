@@ -44,7 +44,12 @@ export interface PayMongoWebhookEvent {
 
 class PayMongoService {
   constructor() {
-    console.log('PayMongo Service initialized (using server-side endpoints)');
+    console.log('🚨 CONSTRUCTOR: PayMongo Service initialized (using server-side endpoints)');
+    console.log('🚨 CONSTRUCTOR: Environment check - hostname:', window.location.hostname);
+    console.log('🚨 CONSTRUCTOR: Environment variables available:', {
+      hasSecretKey: !!import.meta.env.VITE_PAYMONGO_SECRET_KEY,
+      hasPublicKey: !!import.meta.env.VITE_PAYMONGO_PUBLIC_KEY
+    });
     
     // Debug method for browser console testing
     (window as unknown as Window & { testPayMongo: () => string }).testPayMongo = () => {
@@ -58,9 +63,12 @@ class PayMongoService {
   }
 
   async createCheckoutSession(plan: 'premium' | 'vip', userId?: string): Promise<string> {
+    alert('🚨 DEBUG: createCheckoutSession called! Check console for details.');
+    console.log('🚨 DEBUG: ==========================================');
     console.log('🚨 DEBUG: createCheckoutSession called - START');
     console.log('🚨 DEBUG: plan:', plan);
     console.log('🚨 DEBUG: userId:', userId);
+    console.log('🚨 DEBUG: ==========================================');
     
     try {
       console.log('🚨 DEBUG: Creating PayMongo checkout session for plan:', plan, 'userId:', userId);
