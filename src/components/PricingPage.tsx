@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Crown, DollarSign, Zap, Check, X } from 'lucide-react';
 import { payMongoService } from '../services/PayMongoService';
 import { useAuth } from '../hooks/useAuth';
+import { useLoadingWithTimeout } from '../hooks/useLoadingWithTimeout';
 
 interface PricingPlan {
   id: string;
@@ -74,32 +75,40 @@ const pricingPlans: PricingPlan[] = [
 
 export const PricingPage: React.FC = () => {
   const [isAnnual, setIsAnnual] = useState(false);
-  const [loading, setLoading] = useState<string | null>(null);
   const { user } = useAuth();
+  
+  // Use timeout-aware loading states
+  const subscriptionLoading = useLoadingWithTimeout({
+    timeoutMs: 20000, // 20 seconds for payment redirect
+    onTimeout: () => {
+      alert('Payment setup is taking longer than expected. Please try again or check your connection.');
+    }
+  });
 
   const handleSubscribe = async (plan: PricingPlan) => {
     if (plan.id === 'free') return;
     
-    setLoading(plan.id);
-    
-    try {
-      if (!user) {
-        alert('Please login first to subscribe');
-        setLoading(null);
-        return;
-      }
+    if (!user) {
+      alert('Please login first to subscribe');
+      return;
+    }
 
-      const checkoutUrl = await payMongoService.createCheckoutSession(
-        plan.id as 'premium' | 'vip',
-        user.id
-      );
-      
-      // Redirect to PayMongo checkout
-      window.location.href = checkoutUrl;
-    } catch (error) {
-      console.error('Subscription error:', error);
-      alert('Something went wrong. Please try again.');
-      setLoading(null);
+    const result = await subscriptionLoading.executeWithLoading(
+      async () => {
+        const checkoutUrl = await payMongoService.createCheckoutSession(
+          plan.id as 'premium' | 'vip',
+          user.id
+        );
+        
+        // Redirect to PayMongo checkout
+        window.location.href = checkoutUrl;
+        return true;
+      },
+      'Failed to create checkout session. Please try again.'
+    );
+
+    if (!result && subscriptionLoading.error) {
+      alert(subscriptionLoading.error);
     }
   };
 
@@ -226,19 +235,19 @@ export const PricingPage: React.FC = () => {
                 {/* CTA Button */}
                 <button
                   onClick={() => handleSubscribe(plan)}
-                  disabled={loading === plan.id}
+                  disabled={subscriptionLoading.isLoading}
                   className={`w-full py-3 px-6 rounded-lg font-semibold transition-all duration-200 ${
                     plan.id === 'free'
                       ? 'bg-gray-100 text-gray-700 cursor-not-allowed'
                       : plan.popular
                       ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl'
                       : 'bg-gray-900 hover:bg-gray-800 text-white'
-                  } ${loading === plan.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  } ${subscriptionLoading.isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  {loading === plan.id ? (
+                  {subscriptionLoading.isLoading ? (
                     <div className="flex items-center justify-center">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Processing...
+                      {subscriptionLoading.hasTimedOut ? 'Taking longer than expected...' : 'Processing...'}
                     </div>
                   ) : plan.id === 'free' ? (
                     'Current Plan'

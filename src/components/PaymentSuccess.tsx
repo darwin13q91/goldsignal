@@ -1,59 +1,61 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, XCircle, Clock, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useLoadingWithTimeout } from '../hooks/useLoadingWithTimeout';
 
 export const PaymentSuccess: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
-  const [status, setStatus] = useState<'success' | 'error' | 'processing'>('processing');
-  const [message, setMessage] = useState('Processing your subscription...');
 
   const planType = searchParams.get('plan');
   const sessionId = searchParams.get('session_id');
 
+  // Use loading with timeout for payment verification
+  const paymentVerification = useLoadingWithTimeout({
+    timeoutMs: 30000, // 30 seconds for payment verification
+    onTimeout: () => {
+      console.warn('Payment verification timed out')
+    }
+  });
+
   useEffect(() => {
     const processPayment = async () => {
       if (!sessionId) {
-        setStatus('error');
-        setMessage('Payment verification failed. Please contact support.');
+        paymentVerification.stopLoading('Payment verification failed. Please contact support.');
         return;
       }
 
-      try {
-        // Verify the PayMongo session
-        const response = await fetch('/api/verify-paymongo-session', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            session_id: sessionId,
-            user_id: user?.id
-          })
-        });
+      await paymentVerification.executeWithLoading(
+        async () => {
+          const response = await fetch('/api/verify-paymongo-session', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              session_id: sessionId,
+              user_id: user?.id
+            })
+          });
 
-        const result = await response.json();
-        
-        if (result.success) {
-          setStatus('success');
-          setMessage(`Payment successful! Your ${result.plan} subscription is now active.`);
-        } else {
-          setStatus('error');
-          setMessage(result.error || 'Payment verification failed. Please contact support.');
-        }
-      } catch (error) {
-        console.error('Payment processing error:', error);
-        setStatus('error');
-        setMessage('Payment verification failed. Please contact support.');
-      }
+          const result = await response.json();
+          
+          if (!result.success) {
+            throw new Error(result.error || 'Payment verification failed. Please contact support.');
+          }
+
+          return result;
+        },
+        'Payment verification failed. Please contact support.'
+      );
     };
 
     // Add a small delay for better UX
     const timer = setTimeout(processPayment, 2000);
     return () => clearTimeout(timer);
-  }, [sessionId, planType, user]);
+  }, [sessionId, user]); // Removed planType and paymentVerification to avoid dependency issues
 
   const handleBackToDashboard = () => {
     navigate('/');
@@ -63,23 +65,43 @@ export const PaymentSuccess: React.FC = () => {
     window.location.href = 'mailto:support@goldsignals.com?subject=Payment Issue';
   };
 
+  // Determine current status
+  const isProcessing = paymentVerification.isLoading;
+  const hasError = paymentVerification.error || paymentVerification.hasTimedOut;
+  const isSuccess = !isProcessing && !hasError && sessionId;
+
+  const getStatusMessage = () => {
+    if (isProcessing) {
+      return paymentVerification.hasTimedOut 
+        ? 'Payment verification is taking longer than expected...'
+        : 'Processing your subscription...';
+    }
+    if (paymentVerification.error) {
+      return paymentVerification.error;
+    }
+    if (isSuccess) {
+      return `Payment successful! Your ${planType || 'premium'} subscription is now active.`;
+    }
+    return 'Payment verification failed. Please contact support.';
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
         <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
           {/* Status Icon */}
           <div className="mb-6">
-            {status === 'processing' && (
+            {isProcessing && (
               <div className="w-16 h-16 mx-auto">
                 <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-500 border-t-transparent"></div>
               </div>
             )}
-            {status === 'success' && (
+            {isSuccess && (
               <div className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center">
                 <CheckCircle className="w-10 h-10 text-green-600" />
               </div>
             )}
-            {status === 'error' && (
+            {hasError && (
               <div className="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center">
                 <XCircle className="w-10 h-10 text-red-600" />
               </div>
@@ -88,23 +110,23 @@ export const PaymentSuccess: React.FC = () => {
 
           {/* Status Message */}
           <h1 className={`text-2xl font-bold mb-4 ${
-            status === 'success' ? 'text-gray-900' : 
-            status === 'error' ? 'text-red-700' : 'text-gray-700'
+            isSuccess ? 'text-gray-900' : 
+            hasError ? 'text-red-700' : 'text-gray-700'
           }`}>
-            {status === 'success' && 'Welcome to Premium!'}
-            {status === 'error' && 'Payment Issue'}
-            {status === 'processing' && 'Processing Payment...'}
+            {isSuccess && 'Welcome to Premium!'}
+            {hasError && 'Payment Issue'}
+            {isProcessing && 'Processing Payment...'}
           </h1>
 
           <p className={`text-lg mb-6 ${
-            status === 'success' ? 'text-gray-600' : 
-            status === 'error' ? 'text-red-600' : 'text-gray-500'
+            isSuccess ? 'text-gray-600' : 
+            hasError ? 'text-red-600' : 'text-gray-500'
           }`}>
-            {message}
+            {getStatusMessage()}
           </p>
 
           {/* Plan Information */}
-          {planType && status === 'success' && (
+          {planType && isSuccess && (
             <div className="bg-green-50 rounded-lg p-4 mb-6">
               <h3 className="font-semibold text-green-800 mb-2">
                 {planType === 'premium' ? 'Premium Plan' : 'VIP Plan'} Activated
@@ -135,7 +157,7 @@ export const PaymentSuccess: React.FC = () => {
 
           {/* Action Buttons */}
           <div className="space-y-3">
-            {status === 'success' && (
+            {isSuccess && (
               <button
                 onClick={handleBackToDashboard}
                 className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-3 px-6 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all duration-200 flex items-center justify-center"
@@ -145,7 +167,7 @@ export const PaymentSuccess: React.FC = () => {
               </button>
             )}
             
-            {status === 'error' && (
+            {hasError && (
               <>
                 <button
                   onClick={handleContactSupport}
@@ -159,13 +181,27 @@ export const PaymentSuccess: React.FC = () => {
                 >
                   Back to Dashboard
                 </button>
+                {paymentVerification.hasTimedOut && (
+                  <button
+                    onClick={() => {
+                      paymentVerification.reset();
+                      window.location.reload();
+                    }}
+                    className="w-full bg-blue-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-600 transition-all duration-200"
+                  >
+                    Try Again
+                  </button>
+                )}
               </>
             )}
             
-            {status === 'processing' && (
+            {isProcessing && (
               <div className="flex items-center justify-center text-gray-500">
                 <Clock className="w-4 h-4 mr-2" />
-                Please wait while we confirm your payment...
+                {paymentVerification.hasTimedOut 
+                  ? 'Taking longer than expected... Please wait or try refreshing.'
+                  : 'Please wait while we confirm your payment...'
+                }
               </div>
             )}
           </div>

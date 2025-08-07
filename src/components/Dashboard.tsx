@@ -32,13 +32,19 @@ interface DashboardProps {
   onSignalUpdate: () => void
   isLoadingSignals: boolean
   userProfile: UserProfile
+  loadingError?: string | null
+  hasTimedOut?: boolean
+  onRetryLoading?: () => void
 }
 
 const Dashboard: React.FC<DashboardProps> = ({
   signals,
   onSignalUpdate,
   isLoadingSignals,
-  userProfile
+  userProfile,
+  loadingError,
+  hasTimedOut,
+  onRetryLoading
 }) => {
   const [activeTab, setActiveTab] = useState<'signals' | 'performance' | 'subscribers' | 'manage' | 'profile'>('signals')
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false)
@@ -301,6 +307,162 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         {/* Tab Content */}
         {activeTab === 'signals' && (
+          <div>
+            {/* Error Display */}
+            {(loadingError || hasTimedOut) && (
+              <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className="text-red-600 mr-3">⚠️</div>
+                    <div>
+                      <h4 className="text-red-800 font-semibold">
+                        {hasTimedOut ? 'Connection Timeout' : 'Loading Error'}
+                      </h4>
+                      <p className="text-red-700 text-sm">
+                        {loadingError || 'The request is taking longer than expected. This may be due to deployment updates or network issues.'}
+                      </p>
+                    </div>
+                  </div>
+                  {onRetryLoading && (
+                    <button
+                      onClick={onRetryLoading}
+                      className="flex items-center px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-1" />
+                      Retry
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Signal Data */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <div className="bg-gradient-to-br from-green-500 to-green-600 p-6 rounded-lg text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-green-100">Active Signals</p>
+                    <p className="text-2xl font-bold">{enhancedSignals.filter(s => s.status === 'active').length}</p>
+                  </div>
+                  <Target className="w-8 h-8 text-green-200" />
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-6 rounded-lg text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-blue-100">Win Rate</p>
+                    <p className="text-2xl font-bold">{getWinRate(enhancedSignals)}%</p>
+                  </div>
+                  <TrendingUp className="w-8 h-8 text-blue-200" />
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-br from-purple-500 to-purple-600 p-6 rounded-lg text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-purple-100">Total P&L</p>
+                    <p className="text-2xl font-bold">
+                      {getTotalProfitLoss(enhancedSignals) >= 0 ? '+' : ''}
+                      {getTotalProfitLoss(enhancedSignals).toFixed(1)}%
+                    </p>
+                  </div>
+                  <DollarSign className="w-8 h-8 text-purple-200" />
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-br from-orange-500 to-orange-600 p-6 rounded-lg text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-orange-100">Gold Price</p>
+                    <p className="text-2xl font-bold">${currentGoldPrice > 0 ? currentGoldPrice.toFixed(2) : 'Loading...'}</p>
+                    <p className="text-xs text-orange-200">{dataSource}</p>
+                  </div>
+                  <Activity className="w-8 h-8 text-orange-200" />
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Signals Table */}
+            <div className="bg-white rounded-lg shadow-md">
+              <div className="px-6 py-4 border-b">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900">Recent Trading Signals</h3>
+                  {isLoadingSignals && (
+                    <div className="flex items-center text-sm text-gray-500">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent mr-2"></div>
+                      Loading signals...
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {enhancedSignals.length === 0 && !isLoadingSignals ? (
+                <div className="p-8 text-center">
+                  <Target className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">No signals available yet.</p>
+                  <p className="text-sm text-gray-400 mt-1">Start by creating your first trading signal!</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Signal</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entry</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SL</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">TP</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">P&L</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {enhancedSignals.slice(0, 10).map((signal) => (
+                        <tr key={signal.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center">
+                              <div className={`w-3 h-3 rounded-full mr-3 ${
+                                signal.type === 'buy' ? 'bg-green-500' : 'bg-red-500'
+                              }`}></div>
+                              <div>
+                                <div className="font-semibold text-gray-900">{signal.symbol}</div>
+                                <div className="text-sm text-gray-500 capitalize">{signal.type}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 font-mono text-sm">${signal.entry_price}</td>
+                          <td className="px-6 py-4 font-mono text-sm">${signal.stop_loss}</td>
+                          <td className="px-6 py-4 font-mono text-sm">${signal.take_profit}</td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getEnhancedStatusColor(signal)}`}>
+                              {signal.enhancedStatus}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`font-semibold ${
+                              signal.currentProfitLoss && signal.currentProfitLoss >= 0 
+                                ? 'text-green-600' 
+                                : 'text-red-600'
+                            }`}>
+                              {signal.currentProfitLoss !== undefined 
+                                ? `${signal.currentProfitLoss >= 0 ? '+' : ''}${signal.currentProfitLoss.toFixed(2)}%`
+                                : '—'
+                              }
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-500">
+                            {new Date(signal.created_at).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
           <div className="space-y-6">
             {/* Gold Market Data Section */}
             <div className="bg-white rounded-xl shadow-sm">
@@ -449,8 +611,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             {formatTime(signal.created_at)}
                           </td>
                         </tr>
-                        )
-                      })}
+                      ))}
                     </tbody>
                   </table>
                 )}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { useToast } from '../hooks/useToast'
 import { Mail, Lock, User, Eye, EyeOff, AlertCircle } from 'lucide-react'
 
 interface AuthFormProps {
@@ -19,6 +20,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const { signIn, signUp, loading } = useAuth()
+  const { showSuccess, showError } = useToast()
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
@@ -61,17 +63,41 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
       let result
       if (isLogin) {
         result = await signIn(formData.email, formData.password)
+        
+        if (result.error) {
+          setErrors({ submit: result.error })
+          showError('Login Failed', result.error)
+        } else {
+          showSuccess('Welcome Back!', 'Successfully logged into your account.')
+          onSuccess?.()
+        }
       } else {
         result = await signUp(formData.email, formData.password, formData.fullName)
-      }
-
-      if (result.error) {
-        setErrors({ submit: result.error })
-      } else {
-        onSuccess?.()
+        
+        if (result.error) {
+          setErrors({ submit: result.error })
+          showError('Registration Failed', result.error)
+        } else {
+          showSuccess(
+            '🎉 Welcome to Gold Signal Service!',
+            `Hi ${formData.fullName}! Your account has been created successfully. Check your email for verification and explore our free signals!`
+          )
+          
+          // Show additional success info
+          setTimeout(() => {
+            showSuccess(
+              'Get Started',
+              'A welcome notification has been added to your dashboard. Start exploring our premium trading signals!'
+            )
+          }, 2000)
+          
+          onSuccess?.()
+        }
       }
     } catch {
-      setErrors({ submit: 'An unexpected error occurred' })
+      const errorMessage = 'An unexpected error occurred'
+      setErrors({ submit: errorMessage })
+      showError('System Error', errorMessage)
     } finally {
       setIsSubmitting(false)
     }

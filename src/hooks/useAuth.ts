@@ -103,7 +103,7 @@ export function useAuth(): AuthContextType {
   const signUp = async (email: string, password: string, fullName: string) => {
     try {
       setLoading(true)
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -117,7 +117,39 @@ export function useAuth(): AuthContextType {
         return { error: error.message }
       }
 
-      return {}
+      // If signup was successful and user is created, create welcome notification
+      if (data.user) {
+        // Create welcome notification
+        try {
+          await supabase
+            .from('notifications')
+            .insert({
+              user_id: data.user.id,
+              title: '🎉 Welcome to Gold Signal Service!',
+              message: `Hi ${fullName}! Welcome to our premium trading signal platform. You've successfully joined thousands of profitable traders. Start exploring our free signals and consider upgrading to Premium for unlimited access.`,
+              type: 'welcome',
+              is_read: false,
+              created_at: new Date().toISOString()
+            })
+        } catch (notificationError) {
+          console.log('Welcome notification creation failed:', notificationError)
+          // Don't fail the signup process if notification fails
+        }
+
+        // Send welcome email using our email service
+        try {
+          const emailService = await import('../services/EmailNotificationService')
+          await emailService.emailNotificationService.sendWelcomeEmail(
+            email,
+            'free'
+          )
+        } catch (emailError) {
+          console.log('Welcome email failed:', emailError)
+          // Don't fail the signup process if email fails
+        }
+      }
+
+      return { user: data.user }
     } catch {
       return { error: 'An unexpected error occurred' }
     } finally {
