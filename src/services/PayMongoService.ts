@@ -63,76 +63,11 @@ class PayMongoService {
     console.log('🚨 DEBUG: userId:', userId);
     console.log('🚨 DEBUG: ==========================================');
     
+    // TEMPORARY: Skip server API completely and go directly to PayMongo API for debugging
+    console.log('🚨 DEBUG: SKIPPING SERVER API - Going directly to PayMongo for testing');
+    
     try {
-      console.log('🚨 DEBUG: Creating PayMongo checkout session for plan:', plan, 'userId:', userId);
-      console.log('🚨 DEBUG: Current hostname:', window.location.hostname);
-      console.log('🚨 DEBUG: Is development?', window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-      
-      // Try server-side API endpoint first, but always fallback in development
-      let serverError = null;
-      try {
-        console.log('🚨 DEBUG: Attempting server-side API...');
-        const response = await fetch('/api/create-checkout-session', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            plan,
-            userId
-          })
-        });
-
-        console.log('🚨 DEBUG: Server response status:', response.status);
-        console.log('🚨 DEBUG: Server response ok:', response.ok);
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log('✅ DEBUG: Checkout session created successfully via server:', data.session_id);
-          return data.checkout_url;
-        } else {
-          // Get the error response text
-          const errorText = await response.text();
-          console.error('❌ DEBUG: Server API error response text:', errorText);
-          
-          let errorData;
-          try {
-            errorData = JSON.parse(errorText);
-            console.error('❌ DEBUG: Parsed server error data:', errorData);
-          } catch (parseError) {
-            console.error('❌ DEBUG: Could not parse server error as JSON:', parseError);
-            errorData = { error: `HTTP ${response.status}: ${errorText}` };
-          }
-          
-          // Store error for potential fallback
-          serverError = new Error(errorData.error || `Server error: HTTP ${response.status}`);
-        }
-      } catch (fetchError) {
-        console.error('❌ DEBUG: Fetch error:', fetchError);
-        serverError = fetchError instanceof Error ? fetchError : new Error(String(fetchError));
-      }
-
-      // If we have a server error, try fallback in development
-      if (serverError) {
-        console.log('🚨 DEBUG: Server-side API call failed, error:', serverError);
-        console.log('🚨 DEBUG: Error message:', serverError.message);
-        console.log('🚨 DEBUG: Checking if in development mode for fallback...');
-        console.log('🚨 DEBUG: window.location.hostname:', window.location.hostname);
-        console.log('🚨 DEBUG: Is localhost?', window.location.hostname === 'localhost');
-        console.log('🚨 DEBUG: Is 127.0.0.1?', window.location.hostname === '127.0.0.1');
-        
-        // Development fallback - always use if we detect we're in development
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-          console.log('✅ DEBUG: Development mode detected, using direct API call fallback (NOT SECURE FOR PRODUCTION)');
-          return await this.createCheckoutSessionDirect(plan, userId);
-        }
-        
-        console.error('❌ DEBUG: Not in development mode, cannot use fallback. Throwing server error:', serverError);
-        throw serverError;
-      }
-
-      // This should never be reached, but just in case
-      throw new Error('Unexpected error: no server response and no fallback triggered');
+      return await this.createCheckoutSessionDirect(plan, userId);
     } catch (error) {
       console.error('❌ DEBUG: Error in createCheckoutSession outer try-catch:', error);
       console.error('❌ DEBUG: Error creating PayMongo checkout session:', error);
@@ -146,19 +81,14 @@ class PayMongoService {
     
     console.log('🚨 DEBUG: createCheckoutSessionDirect called - START');
     
-    // Try to get the secret key from environment - using try/catch to handle TypeScript issues
-    let secretKey: string | undefined;
-    try {
-      secretKey = (import.meta as { env: Record<string, string> }).env.VITE_PAYMONGO_SECRET_KEY;
-    } catch (error) {
-      console.error('❌ DEBUG: Could not access import.meta.env:', error);
-    }
+    // TEMPORARY: Use hardcoded secret key from .env file for testing
+    const secretKey = 'sk_test_g8DL2qHp5axtaSqVQymTTb3b'; // From your .env file
     
     console.log('🚨 DEBUG: Secret key exists?', !!secretKey);
     console.log('🚨 DEBUG: Secret key preview:', secretKey ? secretKey.substring(0, 10) + '...' : 'undefined');
     
     if (!secretKey) {
-      const errorMsg = 'PayMongo secret key not found in environment variables';
+      const errorMsg = 'PayMongo secret key not found';
       console.error('❌ DEBUG:', errorMsg);
       throw new Error(errorMsg);
     }
