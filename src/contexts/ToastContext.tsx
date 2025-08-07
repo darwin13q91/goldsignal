@@ -1,25 +1,8 @@
-import React, { createContext, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { Toast } from '../components/Toast';
-import type { ToastType } from '../components/Toast';
-
-interface ToastItem {
-  id: string;
-  type: ToastType;
-  title: string;
-  message?: string;
-  duration?: number;
-}
-
-interface ToastContextType {
-  showToast: (toast: Omit<ToastItem, 'id'>) => void;
-  showSuccess: (title: string, message?: string) => void;
-  showError: (title: string, message?: string) => void;
-  showWarning: (title: string, message?: string) => void;
-  showInfo: (title: string, message?: string) => void;
-}
-
-export const ToastContext = createContext<ToastContextType | undefined>(undefined);
+import { ToastContext } from './ToastContextDefinition';
+import type { ToastItem } from './ToastContextDefinition';
 
 interface ToastProviderProps {
   children: ReactNode;

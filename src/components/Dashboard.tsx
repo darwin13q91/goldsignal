@@ -37,6 +37,28 @@ interface DashboardProps {
   onRetryLoading?: () => void
 }
 
+// Utility functions for signal analytics
+const getWinRate = (signals: EnhancedSignal[]): number => {
+  if (signals.length === 0) return 0
+  const closedSignals = signals.filter(signal => signal.status === 'closed')
+  if (closedSignals.length === 0) return 0
+  const winningSignals = closedSignals.filter(signal => 
+    signal.calculated_status && signal.calculated_status.isProfit
+  )
+  return Math.round((winningSignals.length / closedSignals.length) * 100)
+}
+
+const getTotalProfitLoss = (signals: EnhancedSignal[]): number => {
+  const closedSignals = signals.filter(signal => 
+    signal.status === 'closed' && signal.calculated_status && signal.calculated_status.pnlPercentage !== undefined
+  )
+  if (closedSignals.length === 0) return 0
+  const totalPnL = closedSignals.reduce((sum, signal) => 
+    sum + (signal.calculated_status?.pnlPercentage || 0), 0
+  )
+  return totalPnL
+}
+
 const Dashboard: React.FC<DashboardProps> = ({
   signals,
   onSignalUpdate,
@@ -435,18 +457,25 @@ const Dashboard: React.FC<DashboardProps> = ({
                           <td className="px-6 py-4 font-mono text-sm">${signal.stop_loss}</td>
                           <td className="px-6 py-4 font-mono text-sm">${signal.take_profit}</td>
                           <td className="px-6 py-4">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getEnhancedStatusColor(signal)}`}>
-                              {signal.enhancedStatus}
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              signal.calculated_status 
+                                ? getEnhancedStatusColor(signal.calculated_status)
+                                : getStatusColor(signal.status)
+                            }`}>
+                              {signal.calculated_status 
+                                ? signal.calculated_status.statusText 
+                                : signal.status.toUpperCase()
+                              }
                             </span>
                           </td>
                           <td className="px-6 py-4">
                             <span className={`font-semibold ${
-                              signal.currentProfitLoss && signal.currentProfitLoss >= 0 
+                              signal.calculated_status && signal.calculated_status.isProfit 
                                 ? 'text-green-600' 
                                 : 'text-red-600'
                             }`}>
-                              {signal.currentProfitLoss !== undefined 
-                                ? `${signal.currentProfitLoss >= 0 ? '+' : ''}${signal.currentProfitLoss.toFixed(2)}%`
+                              {signal.calculated_status && signal.calculated_status.pnlPercentage !== undefined 
+                                ? `${signal.calculated_status.pnlPercentage >= 0 ? '+' : ''}${signal.calculated_status.pnlPercentage.toFixed(2)}%`
                                 : '—'
                               }
                             </span>
@@ -611,14 +640,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                             {formatTime(signal.created_at)}
                           </td>
                         </tr>
-                      ))}
+                        )
+                      })}
                     </tbody>
                   </table>
                 )}
               </div>
             </div>
           </div>
-        )}
 
         {activeTab === 'performance' && (
           <>

@@ -55,7 +55,7 @@ export const PaymentSuccess: React.FC = () => {
     // Add a small delay for better UX
     const timer = setTimeout(processPayment, 2000);
     return () => clearTimeout(timer);
-  }, [sessionId, user]); // Removed planType and paymentVerification to avoid dependency issues
+  }, [sessionId, user, paymentVerification]); // Added paymentVerification to fix dependency warning
 
   const handleBackToDashboard = () => {
     navigate('/');
