@@ -1,20 +1,20 @@
 import React, { useState } from 'react';
-import { loadStripe } from '@stripe/stripe-js';
 import { Crown, Zap, Check } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { useLoadingWithTimeout } from '../hooks/useLoadingWithTimeout';
+import { payMongoService } from '../services/PayMongoService';
 
 interface UpgradeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  userEmail?: string;
 }
 
 interface PricingPlan {
-  id: string;
+  id: 'premium' | 'vip';
   name: string;
   price: number;
   originalPrice?: number;
   features: string[];
-  stripePriceId: string;
   popular?: boolean;
   icon: React.ReactNode;
   gradient: string;
@@ -24,8 +24,8 @@ const pricingPlans: PricingPlan[] = [
   {
     id: 'premium',
     name: 'Premium',
-    price: 47,
-    originalPrice: 97,
+    price: 1450, // PHP pricing for Philippine market
+    originalPrice: 2900,
     popular: true,
     features: [
       'Unlimited signals',
@@ -35,15 +35,14 @@ const pricingPlans: PricingPlan[] = [
       'Risk management tools',
       'Priority support'
     ],
-    stripePriceId: 'price_premium_monthly', // Replace with actual Stripe Price ID
     icon: <Zap className="w-6 h-6" />,
     gradient: 'from-blue-400 to-blue-600'
   },
   {
     id: 'vip',
     name: 'VIP',
-    price: 197,
-    originalPrice: 397,
+    price: 4950, // PHP pricing for Philippine market  
+    originalPrice: 9900,
     features: [
       'Everything in Premium',
       '1-on-1 monthly consultation',
@@ -54,7 +53,6 @@ const pricingPlans: PricingPlan[] = [
       'Personal trading mentor',
       'API access for automation'
     ],
-    stripePriceId: 'price_vip_monthly', // Replace with actual Stripe Price ID
     icon: <Crown className="w-6 h-6" />,
     gradient: 'from-purple-400 to-purple-600'
   }
@@ -62,52 +60,37 @@ const pricingPlans: PricingPlan[] = [
 
 export const UpgradeModal: React.FC<UpgradeModalProps> = ({ 
   isOpen, 
-  onClose, 
-  userEmail 
+  onClose
 }) => {
-  const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const subscriptionLoading = useLoadingWithTimeout({
+    timeoutMs: 30000,
+    onTimeout: () => setError('Subscription process timed out. Please try again.')
+  });
 
   const handleSubscribe = async (plan: PricingPlan) => {
-    setLoading(plan.id);
-    setError(null);
-    
-    try {
-      // Load Stripe
-      const stripe = await loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
-      
-      if (!stripe) {
-        throw new Error('Stripe failed to load');
-      }
-      
-      // Validate Stripe configuration
-      if (!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 
-          import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY === 'pk_test_your_test_key_here' ||
-          import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY === 'pk_live_your_key_here') {
-        throw new Error('Stripe configuration incomplete. Please contact support.');
-      }
-      
-      // Redirect to Stripe Checkout
-      const { error } = await stripe.redirectToCheckout({
-        lineItems: [{ 
-          price: plan.stripePriceId,
-          quantity: 1 
-        }],
-        mode: 'subscription',
-        successUrl: `${window.location.origin}/success?session_id={CHECKOUT_SESSION_ID}&plan=${plan.id}`,
-        cancelUrl: `${window.location.origin}/pricing`,
-        customerEmail: userEmail,
-        billingAddressCollection: 'required'
-      });
-      
-      if (error) {
-        throw new Error(error.message);
-      }
-    } catch (err) {
-      console.error('Subscription error:', err);
-      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
-    } finally {
-      setLoading(null);
+    if (!user) {
+      setError('Please login first to subscribe');
+      return;
+    }
+
+    const result = await subscriptionLoading.executeWithLoading(
+      async () => {
+        const checkoutUrl = await payMongoService.createCheckoutSession(
+          plan.id,
+          user.id
+        );
+        
+        // Redirect to PayMongo checkout
+        window.location.href = checkoutUrl;
+        return true;
+      },
+      'Failed to create checkout session. Please try again.'
+    );
+
+    if (!result && subscriptionLoading.error) {
+      setError(subscriptionLoading.error);
     }
   };
 
@@ -203,14 +186,14 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
                   {/* CTA Button */}
                   <button
                     onClick={() => handleSubscribe(plan)}
-                    disabled={loading === plan.id}
+                    disabled={subscriptionLoading.isLoading}
                     className={`w-full py-3 px-6 rounded-lg font-semibold transition-all duration-200 ${
                       plan.popular
                         ? `bg-gradient-to-r ${plan.gradient} text-white hover:shadow-lg`
                         : 'bg-gray-900 hover:bg-gray-800 text-white'
-                    } ${loading === plan.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    } ${subscriptionLoading.isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    {loading === plan.id ? (
+                    {subscriptionLoading.isLoading ? (
                       <div className="flex items-center justify-center">
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                         Processing...

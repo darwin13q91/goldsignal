@@ -76,7 +76,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [isLoadingMarketData, setIsLoadingMarketData] = useState(false)
   const [dataSource, setDataSource] = useState<string>('loading...')
   const [apiQuotaExhausted, setApiQuotaExhausted] = useState(false) // Track quota status
-  const { signOut, user } = useAuth()
+  const { signOut } = useAuth()
   const { hasAccess } = useFeatureAccess()
 
   // Monitor signals for automatic TP/SL alerts
@@ -797,7 +797,6 @@ const Dashboard: React.FC<DashboardProps> = ({
       <UpgradeModal
         isOpen={isUpgradeModalOpen}
         onClose={() => setIsUpgradeModalOpen(false)}
-        userEmail={user?.email}
       />
     </div>
   )
