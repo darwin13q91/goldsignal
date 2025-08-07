@@ -6,7 +6,6 @@ import { PaymentSuccess } from './components/PaymentSuccess'
 import { PricingPage } from './components/PricingPage'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { useAuth } from './hooks/useAuth'
-import { useLoadingWithTimeout } from './hooks/useLoadingWithTimeout'
 import { signalCRUDService } from './services/SignalCRUDService'
 import type { Database } from './lib/supabase'
 
@@ -15,21 +14,13 @@ type Signal = Database['public']['Tables']['signals']['Row']
 export default function App() {
   const { user, profile, loading } = useAuth()
   const [signals, setSignals] = useState<Signal[]>([])
+  const [isLoadingSignals, setIsLoadingSignals] = useState(false)
+  const [signalError, setSignalError] = useState<string | null>(null)
   const fetchingRef = useRef(false)
-  
-  // Use the loading hook with timeout
-  const signalLoading = useLoadingWithTimeout({
-    timeoutMs: 15000, // 15 seconds timeout for signals
-    onTimeout: () => {
-      console.warn('Signal loading timed out - stopping further attempts')
-      // Don't retry automatically to prevent infinite loops
-      setSignals([]) // Set empty signals on timeout
-    }
-  })
 
   const fetchSignals = useCallback(async () => {
     // Prevent multiple simultaneous calls
-    if (fetchingRef.current || signalLoading.isLoading) {
+    if (fetchingRef.current) {
       console.log('🔄 Signal fetch already in progress, skipping...')
       return
     }
@@ -37,21 +28,24 @@ export default function App() {
     try {
       console.log('🔄 Fetching signals...')
       fetchingRef.current = true
-      signalLoading.startLoading()
+      setIsLoadingSignals(true)
+      setSignalError(null)
       
       const { signals: fetchedSignals } = await signalCRUDService.getAllSignals(1, 50)
       setSignals(fetchedSignals)
       console.log(`✅ Loaded ${fetchedSignals.length} signals`)
       
-      signalLoading.stopLoading()
+      setIsLoadingSignals(false)
     } catch (error) {
       console.error('❌ Error fetching signals:', error)
       setSignals([]) // Set empty array on error to prevent infinite loading
-      signalLoading.stopLoading('Failed to load signals')
+      setSignalError('Failed to load signals')
+      setIsLoadingSignals(false)
     } finally {
       fetchingRef.current = false
     }
-  }, [signalLoading])
+    // FIXED: No dependencies needed - using basic state setters
+  }, [])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -68,7 +62,7 @@ export default function App() {
       // Move fetch logic directly here to avoid dependency cycle
       const doFetchSignals = async () => {
         // Prevent multiple simultaneous calls
-        if (fetchingRef.current || signalLoading.isLoading) {
+        if (fetchingRef.current) {
           console.log('🔄 Signal fetch already in progress, skipping...')
           return
         }
@@ -76,17 +70,19 @@ export default function App() {
         try {
           console.log('🔄 Fetching signals...')
           fetchingRef.current = true
-          signalLoading.startLoading()
+          setIsLoadingSignals(true)
+          setSignalError(null)
           
           const { signals: fetchedSignals } = await signalCRUDService.getAllSignals(1, 50)
           setSignals(fetchedSignals)
           console.log(`✅ Loaded ${fetchedSignals.length} signals`)
           
-          signalLoading.stopLoading()
+          setIsLoadingSignals(false)
         } catch (error) {
           console.error('❌ Error fetching signals:', error)
           setSignals([]) // Set empty array on error to prevent infinite loading
-          signalLoading.stopLoading('Failed to load signals')
+          setSignalError('Failed to load signals')
+          setIsLoadingSignals(false)
         } finally {
           fetchingRef.current = false
         }
@@ -96,10 +92,12 @@ export default function App() {
     } else {
       // Clear signals for unauthenticated users
       setSignals([])
-      signalLoading.reset() // Reset loading state
+      setIsLoadingSignals(false)
+      setSignalError(null)
       fetchingRef.current = false
     }
-  }, [user, profile, signalLoading])
+    // FIXED: Only depend on user and profile, not loading objects
+  }, [user, profile])
 
   // Show loading screen while checking auth
   if (loading) {
@@ -134,12 +132,12 @@ export default function App() {
                   <Dashboard 
                     signals={signals}
                     onSignalUpdate={fetchSignals}
-                    isLoadingSignals={signalLoading.isLoading}
+                    isLoadingSignals={isLoadingSignals}
                     userProfile={profile}
-                    loadingError={signalLoading.error}
-                    hasTimedOut={signalLoading.hasTimedOut}
+                    loadingError={signalError}
+                    hasTimedOut={false}
                     onRetryLoading={() => {
-                      signalLoading.reset()
+                      setSignalError(null)
                       fetchSignals()
                     }}
                   />
