@@ -49,10 +49,13 @@ class PayMongoService {
 
   async createCheckoutSession(plan: 'premium' | 'vip', userId?: string): Promise<string> {
     try {
-      console.log('Creating PayMongo checkout session for plan:', plan, 'userId:', userId);
+      console.log('🚨 DEBUG: Creating PayMongo checkout session for plan:', plan, 'userId:', userId);
+      console.log('🚨 DEBUG: Current hostname:', window.location.hostname);
+      console.log('🚨 DEBUG: Is development?', window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
       
       // Try server-side API endpoint first
       try {
+        console.log('🚨 DEBUG: Attempting server-side API...');
         const response = await fetch('/api/create-checkout-session', {
           method: 'POST',
           headers: {
@@ -64,37 +67,40 @@ class PayMongoService {
           })
         });
 
-        console.log('Server response status:', response.status);
+        console.log('🚨 DEBUG: Server response status:', response.status);
 
         if (response.ok) {
           const data = await response.json();
-          console.log('Checkout session created successfully via server:', data.session_id);
+          console.log('✅ DEBUG: Checkout session created successfully via server:', data.session_id);
           return data.checkout_url;
         } else if (response.status === 404) {
-          console.log('API endpoint not found, using development fallback');
+          console.log('🚨 DEBUG: API endpoint not found, using development fallback');
           throw new Error('API_NOT_FOUND');
         } else {
           const errorData = await response.json().catch(() => ({ error: 'Unknown server error' }));
-          console.error('Server API error:', errorData);
+          console.error('❌ DEBUG: Server API error:', errorData);
           throw new Error(errorData.error || `Server error: HTTP ${response.status}`);
         }
       } catch (error) {
         if (error instanceof Error && error.message === 'API_NOT_FOUND') {
+          console.log('🚨 DEBUG: API_NOT_FOUND error caught, checking development mode...');
           throw error;
         }
         
-        console.log('Server-side API unavailable, checking if in development mode...');
+        console.log('🚨 DEBUG: Server-side API unavailable, error:', error);
+        console.log('🚨 DEBUG: Checking if in development mode...');
         
         // Development fallback - only use if we detect we're in development
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-          console.log('Development mode detected, using direct API call (NOT SECURE FOR PRODUCTION)');
+          console.log('✅ DEBUG: Development mode detected, using direct API call (NOT SECURE FOR PRODUCTION)');
           return await this.createCheckoutSessionDirect(plan, userId);
         }
         
+        console.error('❌ DEBUG: Not in development mode, throwing error:', error);
         throw error;
       }
     } catch (error) {
-      console.error('Error creating PayMongo checkout session:', error);
+      console.error('❌ DEBUG: Error creating PayMongo checkout session:', error);
       throw error;
     }
   }
@@ -104,6 +110,9 @@ class PayMongoService {
     console.warn('⚠️  WARNING: Using direct PayMongo API call from browser (DEVELOPMENT ONLY)');
     
     const secretKey = import.meta.env.VITE_PAYMONGO_SECRET_KEY;
+    console.log('🚨 DEBUG: Secret key exists?', !!secretKey);
+    console.log('🚨 DEBUG: Secret key preview:', secretKey ? secretKey.substring(0, 10) + '...' : 'undefined');
+    
     if (!secretKey) {
       throw new Error('PayMongo secret key not found in environment variables');
     }
@@ -151,6 +160,8 @@ class PayMongoService {
       }
     };
 
+    console.log('🚨 DEBUG: Making direct PayMongo API call with payload:', JSON.stringify(payload, null, 2));
+
     const response = await fetch('https://api.paymongo.com/v1/checkout_sessions', {
       method: 'POST',
       headers: {
@@ -160,22 +171,28 @@ class PayMongoService {
       body: JSON.stringify(payload)
     });
 
+    console.log('🚨 DEBUG: PayMongo direct API response status:', response.status);
+
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('PayMongo API error:', errorText);
+      console.error('❌ DEBUG: PayMongo API error:', errorText);
       
       let errorDetail;
       try {
         const errorJson = JSON.parse(errorText);
         errorDetail = errorJson.errors?.[0]?.detail || errorJson.message || 'Unknown error';
+        console.error('❌ DEBUG: Parsed error detail:', errorDetail);
       } catch {
         errorDetail = `HTTP ${response.status}: ${errorText}`;
+        console.error('❌ DEBUG: Raw error detail:', errorDetail);
       }
       
       throw new Error(`PayMongo API error: ${errorDetail}`);
     }
 
     const session = await response.json();
+    console.log('✅ DEBUG: PayMongo checkout session created successfully:', session.data.id);
+    console.log('✅ DEBUG: Checkout URL:', session.data.attributes.checkout_url);
     return session.data.attributes.checkout_url;
   }
 

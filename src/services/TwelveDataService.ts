@@ -23,14 +23,12 @@ class TwelveDataService {
   private readonly MAX_REQUESTS_PER_DAY = 0 // EMERGENCY: No requests allowed
 
   constructor() {
-    // EMERGENCY: Do minimal initialization
-    console.log('🚨 EMERGENCY MODE: TwelveDataService initialized in safe mode - NO API CALLS')
+    // EMERGENCY: Do minimal initialization - silent mode
   }
 
   // Get real-time Gold price - EMERGENCY: Returns mock data only
   async getGoldPrice(): Promise<MarketData> {
-    // EMERGENCY: Return mock data instead of making API calls
-    console.log('🚨 EMERGENCY MODE: Returning mock Gold data to prevent API calls')
+    // EMERGENCY: Return mock data instead of making API calls - silent mode
     
     // Generate realistic gold price mock data
     const basePrice = 2650 // Realistic current gold price
@@ -65,13 +63,11 @@ class TwelveDataService {
 
   // Public method to reset quota manually (for testing)
   resetQuota(): void {
-    // EMERGENCY: Do nothing - keep quota permanently exhausted
-    console.log('🚨 EMERGENCY MODE: Quota reset blocked to prevent API calls')
+    // EMERGENCY: Do nothing - keep quota permanently exhausted - silent mode
   }
   
   async getHistoricalData(): Promise<HistoricalDataPoint[]> {
-    // EMERGENCY: Return empty array to prevent API calls
-    console.log('🚨 EMERGENCY MODE: Historical data blocked to prevent API calls')
+    // EMERGENCY: Return empty array to prevent API calls - silent mode
     return []
   }
 
