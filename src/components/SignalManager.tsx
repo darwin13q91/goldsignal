@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { Plus, Edit, Trash2 } from 'lucide-react'
 import { signalCRUDService } from '../services/SignalCRUDService'
+import { signalAlertService } from '../services/SignalAlertService'
 import TwelveDataService from '../services/TwelveDataService'
 import { enhanceSignalsWithStatus, getEnhancedStatusColor, type EnhancedSignal } from '../utils/signalStatus'
 import type { Database } from '../lib/supabase'
@@ -68,7 +69,11 @@ export default function SignalManager({ signals, onSignalUpdate }: SignalManager
       if (editingSignal) {
         await signalCRUDService.updateSignal(editingSignal.id, formData)
       } else {
-        await signalCRUDService.createSignal(formData as SignalInsert)
+        const newSignal = await signalCRUDService.createSignal(formData as SignalInsert)
+        // Send alerts for new signals
+        if (newSignal) {
+          signalAlertService.sendNewSignalAlert(newSignal)
+        }
       }
       
       setShowForm(false)
@@ -99,6 +104,14 @@ export default function SignalManager({ signals, onSignalUpdate }: SignalManager
   const handleCloseSignal = async (signalId: string, result: 'win' | 'loss' | 'breakeven', pips?: number) => {
     try {
       await signalCRUDService.closeSignal(signalId, result, pips)
+      
+      // Send result alerts
+      const signal = signals.find(s => s.id === signalId)
+      if (signal && result !== 'breakeven') {
+        const pnlPercentage = pips ? (pips / signal.entry_price) * 100 : 0
+        signalAlertService.sendSignalResultAlert(signal, result, pnlPercentage)
+      }
+      
       onSignalUpdate()
     } catch (error) {
       console.error('Error closing signal:', error)
@@ -385,6 +398,15 @@ export default function SignalManager({ signals, onSignalUpdate }: SignalManager
                         <div className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getResultColor((signal as Signal).result)}`}>
                           {(signal as Signal).result!.toUpperCase()}
                           {(signal as Signal).pips_result && ` (${(signal as Signal).pips_result! > 0 ? '+' : ''}${(signal as Signal).pips_result} pips)`}
+                        </div>
+                      ) : isEnhanced && signal.calculated_status && (signal.calculated_status.status === 'hit_tp' || signal.calculated_status.status === 'hit_sl') ? (
+                        <div className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          signal.calculated_status.isProfit 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {signal.calculated_status.isProfit ? 'WIN' : 'LOSS'}
+                          {signal.calculated_status.pnlPercentage && ` (${signal.calculated_status.pnlPercentage >= 0 ? '+' : ''}${signal.calculated_status.pnlPercentage.toFixed(1)}%)`}
                         </div>
                       ) : (
                         <span className="text-sm text-gray-500">-</span>

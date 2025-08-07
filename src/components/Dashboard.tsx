@@ -4,8 +4,11 @@ import { TrendingUp, Users, DollarSign, Target, LogOut, User, Settings, Activity
 import SignalManager from './SignalManager'
 import { SubscriberManager } from './SubscriberManager'
 import { UpgradeModal } from './UpgradeModal'
+import { NotificationCenter } from './NotificationCenter'
+import { UserProfileSettings } from './UserProfileSettings'
 import { useAuth } from '../hooks/useAuth'
 import { useFeatureAccess } from '../hooks/useFeatureAccess'
+import { useSignalMonitor } from '../hooks/useSignalMonitor'
 import TwelveDataService from '../services/TwelveDataService'
 import { enhanceSignalsWithStatus, getEnhancedStatusColor, type EnhancedSignal } from '../utils/signalStatus'
 import type { Database } from '../lib/supabase'
@@ -37,7 +40,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   isLoadingSignals,
   userProfile
 }) => {
-  const [activeTab, setActiveTab] = useState<'signals' | 'performance' | 'subscribers' | 'manage'>('signals')
+  const [activeTab, setActiveTab] = useState<'signals' | 'performance' | 'subscribers' | 'manage' | 'profile'>('signals')
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false)
   const [marketData, setMarketData] = useState<MarketData[]>([])
   const [enhancedSignals, setEnhancedSignals] = useState<EnhancedSignal[]>([])
@@ -46,6 +49,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [dataSource, setDataSource] = useState<string>('loading...')
   const { signOut, user } = useAuth()
   const { hasAccess } = useFeatureAccess()
+
+  // Monitor signals for automatic TP/SL alerts
+  useSignalMonitor({ signals, onSignalUpdate })
 
   // Initialize Twelve Data service (broker-grade data)
   const twelveDataService = useMemo(() => new TwelveDataService(), [])
@@ -229,6 +235,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               <p className="text-gray-600">Welcome back, {userProfile.full_name}</p>
             </div>
             <div className="flex items-center space-x-4">
+              <NotificationCenter userId={userProfile.id} />
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                   <User className="w-5 h-5 text-white" />
@@ -256,10 +263,11 @@ const Dashboard: React.FC<DashboardProps> = ({
               { id: 'performance', label: 'Performance', icon: TrendingUp },
               { id: 'subscribers', label: 'Subscribers', icon: Users },
               { id: 'manage', label: 'Manage Signals', icon: Settings },
+              { id: 'profile', label: 'Profile', icon: User },
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as 'signals' | 'performance' | 'subscribers' | 'manage')}
+                onClick={() => setActiveTab(tab.id as 'signals' | 'performance' | 'subscribers' | 'manage' | 'profile')}
                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors ${
                   activeTab === tab.id
                     ? 'bg-blue-600 text-white'
@@ -544,6 +552,13 @@ const Dashboard: React.FC<DashboardProps> = ({
           <SignalManager 
             signals={signals} 
             onSignalUpdate={onSignalUpdate}
+          />
+        )}
+
+        {activeTab === 'profile' && (
+          <UserProfileSettings
+            userProfile={userProfile}
+            onUpdate={onSignalUpdate} // This will refresh user data
           />
         )}
       </div>

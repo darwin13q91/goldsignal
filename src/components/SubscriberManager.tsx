@@ -30,6 +30,14 @@ export const SubscriberManager: React.FC<SubscriberManagerProps> = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [formData, setFormData] = useState({
+    email: '',
+    full_name: '',
+    subscription_tier: 'free' as SubscriptionTier,
+    subscription_status: 'active' as 'active' | 'canceled' | 'past_due'
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const pageSize = 10;
 
@@ -100,18 +108,91 @@ export const SubscriberManager: React.FC<SubscriberManagerProps> = () => {
 
   const handleUserEdit = (user: User) => {
     setSelectedUser(user);
+    setFormData({
+      email: user.email,
+      full_name: user.full_name || '',
+      subscription_tier: user.subscription_tier as SubscriptionTier,
+      subscription_status: user.subscription_status as 'active' | 'canceled' | 'past_due'
+    });
     setShowUserModal(true);
   };
 
   const handleUserDelete = async (userId: string) => {
     if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       try {
-        // Implementation would go here
-        console.log('Deleting user:', userId);
-        loadSubscribers(); // Refresh list
+        setIsSubmitting(true);
+        const success = await userService.deleteUser(userId);
+        if (success) {
+          loadSubscribers(); // Refresh list
+        } else {
+          alert('Failed to delete user');
+        }
       } catch (error) {
         console.error('Error deleting user:', error);
+        alert('Error deleting user');
+      } finally {
+        setIsSubmitting(false);
       }
+    }
+  };
+
+  const handleCreateUser = () => {
+    setFormData({
+      email: '',
+      full_name: '',
+      subscription_tier: 'free' as SubscriptionTier,
+      subscription_status: 'active' as 'active' | 'canceled' | 'past_due'
+    });
+    setSelectedUser(null);
+    setShowCreateModal(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      if (selectedUser) {
+        // Update existing user
+        const updatedUser = await userService.updateUser(selectedUser.id, {
+          full_name: formData.full_name || undefined,
+          subscription_tier: formData.subscription_tier,
+          subscription_status: formData.subscription_status
+        });
+        
+        if (updatedUser) {
+          setShowUserModal(false);
+          loadSubscribers();
+        } else {
+          alert('Failed to update user');
+        }
+      } else {
+        // Create new user
+        const newUser = await userService.createUser({
+          email: formData.email,
+          full_name: formData.full_name,
+          subscription_tier: formData.subscription_tier,
+          subscription_status: formData.subscription_status
+        });
+        
+        if (newUser) {
+          setShowCreateModal(false);
+          loadSubscribers();
+          setFormData({
+            email: '',
+            full_name: '',
+            subscription_tier: 'free',
+            subscription_status: 'active'
+          });
+        } else {
+          alert('Failed to create user');
+        }
+      }
+    } catch (error) {
+      console.error('Error saving user:', error);
+      alert('Error saving user');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -213,6 +294,14 @@ export const SubscriberManager: React.FC<SubscriberManagerProps> = () => {
           </div>
           
           <div className="flex items-center gap-4">
+            <button
+              onClick={handleCreateUser}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add New Subscriber
+            </button>
+            
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-gray-500" />
               <select
@@ -348,20 +437,177 @@ export const SubscriberManager: React.FC<SubscriberManagerProps> = () => {
         )}
       </div>
 
-      {/* User Edit Modal - Placeholder for future implementation */}
+      {/* User Edit Modal */}
       {showUserModal && selectedUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-4">Edit User: {selectedUser.email}</h3>
-            <p className="text-gray-600 mb-4">User editing functionality coming soon!</p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowUserModal(false)}
-                className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
-              >
-                Close
-              </button>
-            </div>
+            
+            <form onSubmit={handleSubmit}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.full_name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter full name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Subscription Tier
+                  </label>
+                  <select
+                    value={formData.subscription_tier}
+                    onChange={(e) => setFormData(prev => ({ ...prev, subscription_tier: e.target.value as SubscriptionTier }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="free">Free</option>
+                    <option value="premium">Premium</option>
+                    <option value="vip">VIP</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Subscription Status
+                  </label>
+                  <select
+                    value={formData.subscription_status}
+                    onChange={(e) => setFormData(prev => ({ ...prev, subscription_status: e.target.value as 'active' | 'canceled' | 'past_due' }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="active">Active</option>
+                    <option value="canceled">Canceled</option>
+                    <option value="past_due">Past Due</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowUserModal(false)}
+                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Updating...' : 'Update User'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create User Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Add New Subscriber</h3>
+            
+            <form onSubmit={handleSubmit}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter email address"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.full_name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter full name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Subscription Tier
+                  </label>
+                  <select
+                    value={formData.subscription_tier}
+                    onChange={(e) => setFormData(prev => ({ ...prev, subscription_tier: e.target.value as SubscriptionTier }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="free">Free</option>
+                    <option value="premium">Premium</option>
+                    <option value="vip">VIP</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Subscription Status
+                  </label>
+                  <select
+                    value={formData.subscription_status}
+                    onChange={(e) => setFormData(prev => ({ ...prev, subscription_status: e.target.value as 'active' | 'canceled' | 'past_due' }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="active">Active</option>
+                    <option value="canceled">Canceled</option>
+                    <option value="past_due">Past Due</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                  disabled={isSubmitting || !formData.email.trim()}
+                >
+                  {isSubmitting ? 'Creating...' : 'Create User'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

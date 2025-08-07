@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, XCircle, Clock, ArrowLeft } from 'lucide-react';
+import { verifyStripeSession, updateUserSubscription } from '../services/PaymentVerificationService';
+import { useAuth } from '../hooks/useAuth';
 
 export const PaymentSuccess: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<'success' | 'error' | 'processing'>('processing');
   const [message, setMessage] = useState('Processing your subscription...');
@@ -12,22 +15,44 @@ export const PaymentSuccess: React.FC = () => {
   const sessionId = searchParams.get('session_id');
 
   useEffect(() => {
-    // Simulate processing - in production, verify session with Stripe
-    const timer = setTimeout(() => {
-      if (sessionId) {
-        setStatus('success');
-        setMessage('Payment successful! Your premium features are now active.');
+    const processPayment = async () => {
+      if (!sessionId) {
+        setStatus('error');
+        setMessage('Payment verification failed. Please contact support.');
+        return;
+      }
+
+      try {
+        // Verify the Stripe session
+        const sessionData = await verifyStripeSession(sessionId);
         
-        // TODO: In production, make API call to verify session and update user profile
-        // await updateUserSubscription(sessionId);
-      } else {
+        if (sessionData.payment_status === 'paid' && user) {
+          // Update user subscription
+          await updateUserSubscription(user.id, {
+            tier: planType === 'vip' ? 'vip' : 'premium',
+            status: 'active',
+            endDate: sessionData.subscription_end_date,
+            stripeCustomerId: sessionData.customer_id,
+            stripeSubscriptionId: sessionData.subscription_id
+          });
+          
+          setStatus('success');
+          setMessage('Payment successful! Your premium features are now active.');
+        } else {
+          setStatus('error');
+          setMessage('Payment verification failed. Please contact support.');
+        }
+      } catch (error) {
+        console.error('Payment processing error:', error);
         setStatus('error');
         setMessage('Payment verification failed. Please contact support.');
       }
-    }, 3000);
+    };
 
+    // Add a small delay for better UX
+    const timer = setTimeout(processPayment, 2000);
     return () => clearTimeout(timer);
-  }, [sessionId]);
+  }, [sessionId, planType, user]);
 
   const handleBackToDashboard = () => {
     navigate('/');
