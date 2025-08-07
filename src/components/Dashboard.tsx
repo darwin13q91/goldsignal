@@ -75,7 +75,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [currentGoldPrice, setCurrentGoldPrice] = useState<number>(0)
   const [isLoadingMarketData, setIsLoadingMarketData] = useState(false)
   const [dataSource, setDataSource] = useState<string>('loading...')
-  const [apiQuotaExhausted, setApiQuotaExhausted] = useState(false) // Track quota status
+  const [apiQuotaExhausted, setApiQuotaExhausted] = useState(true) // EMERGENCY: Force quota exhausted state
   const { signOut } = useAuth()
   const { hasAccess } = useFeatureAccess()
 
@@ -83,7 +83,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   useSignalMonitor({ signals, onSignalUpdate })
 
   // Initialize Twelve Data service (broker-grade data)
-  const twelveDataService = useMemo(() => new TwelveDataService(), [])
+  const twelveDataService = useMemo(() => TwelveDataService, [])
 
   // Fetch Gold price using Twelve Data (800 calls/day free)
   const fetchGoldPrice = useCallback(async (): Promise<MarketData | null> => {

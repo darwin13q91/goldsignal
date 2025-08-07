@@ -22,7 +22,7 @@ export default function SignalManager({ signals, onSignalUpdate }: SignalManager
   const [currentGoldPrice, setCurrentGoldPrice] = useState<number>(0)
 
   // Initialize Twelve Data service
-  const twelveDataService = useMemo(() => new TwelveDataService(), [])
+  const twelveDataService = useMemo(() => TwelveDataService, [])
 
   const [formData, setFormData] = useState<Partial<SignalInsert>>({
     symbol: 'XAUUSD',

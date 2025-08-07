@@ -18,7 +18,7 @@ export const useSignalMonitor = ({ signals, onSignalUpdate }: SignalMonitorProps
 
     try {
       // Get current Gold price
-      const twelveDataService = new TwelveDataService();
+      const twelveDataService = TwelveDataService;
       const goldData = await twelveDataService.getGoldPrice();
       if (!goldData) return;
 
