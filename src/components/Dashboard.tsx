@@ -87,10 +87,11 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   // Fetch Gold price using Twelve Data (800 calls/day free)
   const fetchGoldPrice = useCallback(async (): Promise<MarketData | null> => {
-    // Don't fetch if quota is exhausted
-    if (apiQuotaExhausted) {
+    // Triple-check quota status before making any requests
+    if (apiQuotaExhausted || twelveDataService.isQuotaExhausted()) {
       console.log('🚫 API quota exhausted, skipping Gold price fetch')
       setDataSource('API Quota Exhausted - Wait until tomorrow')
+      setApiQuotaExhausted(true) // Ensure state is set
       return null
     }
 
@@ -112,13 +113,20 @@ const Dashboard: React.FC<DashboardProps> = ({
     } catch (error) {
       console.error('❌ Error fetching Gold data:', error)
       
-      // Check for quota exhaustion
+      // Check for quota exhaustion - be more aggressive in detection
       if (error instanceof Error && 
           (error.message.includes('quota exhausted') || 
+           error.message.includes('API_QUOTA_EXHAUSTED') ||
            error.message.includes('API credits') || 
-           error.message.includes('daily limit'))) {
-        console.log('💰 Detected API quota exhaustion - stopping further requests')
+           error.message.includes('daily limit') ||
+           error.message.includes('limit exceeded') ||
+           error.message.includes('429'))) {
+        console.log('💰 Detected API quota exhaustion - stopping ALL further requests')
         setApiQuotaExhausted(true)
+        // Also mark the service as exhausted
+        twelveDataService.resetQuota = () => {
+          console.log('🚫 Quota reset blocked - manually set to exhausted')
+        }
         setDataSource('API Quota Exhausted (800/day) - Upgrade or wait until tomorrow')
       } else {
         setDataSource('Error - Mock Data Fallback')
@@ -130,7 +138,22 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   // Fetch market data on component mount
   useEffect(() => {
+    let intervalId: NodeJS.Timeout | null = null
+    
     const fetchMarketData = async () => {
+      // Double-check quota status before each request
+      if (apiQuotaExhausted || twelveDataService.isQuotaExhausted()) {
+        console.log('🚫 Skipping market data fetch - quota exhausted')
+        setDataSource('API Quota Exhausted - Wait until tomorrow')
+        setIsLoadingMarketData(false)
+        // Clear any existing interval
+        if (intervalId) {
+          clearInterval(intervalId)
+          intervalId = null
+        }
+        return
+      }
+
       setIsLoadingMarketData(true)
       try {
         // Use Twelve Data for broker-grade XAUUSD data
@@ -146,6 +169,20 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
       } catch (error) {
         console.error('Error fetching market data:', error)
+        
+        // Check if this was a quota error and stop the interval
+        if (error instanceof Error && 
+            (error.message.includes('quota exhausted') || 
+             error.message.includes('API credits') || 
+             error.message.includes('daily limit'))) {
+          console.log('🛑 Quota exhaustion detected - clearing interval')
+          setApiQuotaExhausted(true)
+          if (intervalId) {
+            clearInterval(intervalId)
+            intervalId = null
+          }
+        }
+        
         // No fallback data - show error state
         setMarketData([])
         setCurrentGoldPrice(0)
@@ -154,26 +191,37 @@ const Dashboard: React.FC<DashboardProps> = ({
       }
     }
 
+    // Initial fetch
     fetchMarketData()
     
     // Only set interval if quota is not exhausted
-    if (!apiQuotaExhausted) {
-      // Refresh market data every 30 seconds
-      const interval = setInterval(() => {
-        // Check quota status before each interval call
-        if (!apiQuotaExhausted) {
-          fetchMarketData()
-        } else {
+    if (!apiQuotaExhausted && !twelveDataService.isQuotaExhausted()) {
+      console.log('🔄 Starting market data interval (30s)')
+      intervalId = setInterval(() => {
+        // Triple-check quota status before each interval call
+        if (apiQuotaExhausted || twelveDataService.isQuotaExhausted()) {
           console.log('🛑 Stopping market data interval due to quota exhaustion')
-          clearInterval(interval)
+          if (intervalId) {
+            clearInterval(intervalId)
+            intervalId = null
+          }
+          return
         }
+        fetchMarketData()
       }, 30000)
-      
-      return () => clearInterval(interval)
     } else {
       console.log('🚫 Not starting market data interval - quota exhausted')
     }
-  }, [fetchGoldPrice, apiQuotaExhausted])
+    
+    // Cleanup function
+    return () => {
+      if (intervalId) {
+        console.log('🧹 Cleaning up market data interval')
+        clearInterval(intervalId)
+        intervalId = null
+      }
+    }
+  }, [fetchGoldPrice, apiQuotaExhausted, twelveDataService])
 
   // Enhance signals with real-time status calculation
   useEffect(() => {
@@ -293,7 +341,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50">      
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -542,9 +590,25 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
                       Source: {dataSource}
                     </span>
+                    {/* API Usage Display */}
+                    <div className="text-sm bg-yellow-100 text-yellow-800 px-2 py-1 rounded border">
+                      API: {twelveDataService.getRemainingRequests()}/{twelveDataService.getUsageStats().dailyLimit} remaining
+                    </div>
+                    {/* Emergency Stop Button */}
+                    {!apiQuotaExhausted && (
+                      <button
+                        onClick={() => {
+                          console.log('🛑 EMERGENCY STOP - User manually stopped API calls')
+                          setApiQuotaExhausted(true)
+                        }}
+                        className="px-3 py-1 text-xs text-red-600 hover:text-red-800 border border-red-200 rounded hover:bg-red-50"
+                      >
+                        🛑 Stop API
+                      </button>
+                    )}
                     <button
                       onClick={refreshMarketData}
-                      disabled={isLoadingMarketData}
+                      disabled={isLoadingMarketData || apiQuotaExhausted}
                       className="flex items-center space-x-2 px-4 py-2 text-blue-600 hover:text-blue-800 border border-blue-200 rounded-lg hover:bg-blue-50 disabled:opacity-50"
                     >
                       <RefreshCw className={`w-4 h-4 ${isLoadingMarketData ? 'animate-spin' : ''}`} />

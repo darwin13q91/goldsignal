@@ -75,7 +75,7 @@ class TwelveDataService {
   private config: TwelveDataConfig
   private requestCount: number = 0
   private lastResetTime: number = Date.now()
-  private readonly MAX_REQUESTS_PER_DAY = 800 // Free tier limit
+  private readonly MAX_REQUESTS_PER_DAY = 750 // Set to 750 instead of 800 for safety buffer
   private quotaExhausted = false // Track if quota is exhausted
   private lastQuotaReset = new Date().toDateString() // Track daily reset
 
@@ -115,7 +115,19 @@ class TwelveDataService {
       this.lastResetTime = now
     }
 
-    return this.requestCount < this.MAX_REQUESTS_PER_DAY && !this.quotaExhausted
+    // Check if we're approaching the limit and warn
+    if (this.requestCount >= this.MAX_REQUESTS_PER_DAY * 0.9) { // 90% warning
+      console.warn(`⚠️ WARNING: API usage at ${this.requestCount}/${this.MAX_REQUESTS_PER_DAY} (${Math.round((this.requestCount / this.MAX_REQUESTS_PER_DAY) * 100)}%)`)
+    }
+
+    const canMake = this.requestCount < this.MAX_REQUESTS_PER_DAY && !this.quotaExhausted
+    
+    if (!canMake) {
+      console.log('🛑 Cannot make request - quota exhausted or limit reached')
+      this.quotaExhausted = true
+    }
+    
+    return canMake
   }
 
   // Get real-time Gold price from Twelve Data (broker-grade)
@@ -125,7 +137,15 @@ class TwelveDataService {
     }
 
     if (!this.canMakeRequest()) {
-      throw new Error('Twelve Data daily API limit reached - quota exhausted for today')
+      // Mark as exhausted if we hit the limit
+      this.quotaExhausted = true
+      throw new Error('API_QUOTA_EXHAUSTED')
+    }
+
+    // Additional safety check - if quota was already marked as exhausted, don't proceed
+    if (this.quotaExhausted) {
+      console.log('🚫 API quota already marked as exhausted, preventing API call')
+      throw new Error('API_QUOTA_EXHAUSTED')
     }
 
     try {
@@ -152,6 +172,8 @@ class TwelveDataService {
         // Check if it's a quota exhaustion error
         if (errorMessage.includes('run out of API credits') || 
             errorMessage.includes('daily limit') ||
+            errorMessage.includes('quota') ||
+            errorMessage.includes('limit exceeded') ||
             priceResponse.data.code === 429) {
           console.error('💰 API quota exhausted - marking for today')
           this.quotaExhausted = true
@@ -213,11 +235,20 @@ class TwelveDataService {
         console.error('📋 Error response data:', axiosError.response?.data)
         console.error('📋 Error response status:', axiosError.response?.status)
         
-        // Check for 429 status (rate limit exceeded)
-        if (axiosError.response?.status === 429) {
+        // Check for 429 status (rate limit exceeded) or other quota errors
+        if (axiosError.response?.status === 429 || 
+            axiosError.response?.status === 402 || // Payment required (quota exceeded)
+            (axiosError.response?.data && 
+             typeof axiosError.response.data === 'object' && 
+             axiosError.response.data !== null &&
+             'message' in axiosError.response.data &&
+             typeof axiosError.response.data.message === 'string' &&
+             (axiosError.response.data.message.includes('quota') || 
+              axiosError.response.data.message.includes('limit') ||
+              axiosError.response.data.message.includes('credits')))) {
           this.quotaExhausted = true
-          console.error('🛑 Rate limit exceeded (429) - stopping further requests')
-          throw new Error('Twelve Data API quota exhausted (429). Please wait until tomorrow.')
+          console.error('🛑 Rate/quota limit exceeded - stopping further requests')
+          throw new Error('API_QUOTA_EXHAUSTED')
         }
       }
       
