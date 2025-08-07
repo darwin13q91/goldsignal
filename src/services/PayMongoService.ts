@@ -82,17 +82,27 @@ class PayMongoService {
         });
 
         console.log('🚨 DEBUG: Server response status:', response.status);
+        console.log('🚨 DEBUG: Server response ok:', response.ok);
 
         if (response.ok) {
           const data = await response.json();
           console.log('✅ DEBUG: Checkout session created successfully via server:', data.session_id);
           return data.checkout_url;
-        } else if (response.status === 404) {
-          console.log('🚨 DEBUG: API endpoint not found, using development fallback');
-          throw new Error('API_NOT_FOUND');
         } else {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown server error' }));
-          console.error('❌ DEBUG: Server API error:', errorData);
+          // Get the error response text
+          const errorText = await response.text();
+          console.error('❌ DEBUG: Server API error response text:', errorText);
+          
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+            console.error('❌ DEBUG: Parsed server error data:', errorData);
+          } catch (parseError) {
+            console.error('❌ DEBUG: Could not parse server error as JSON:', parseError);
+            errorData = { error: `HTTP ${response.status}: ${errorText}` };
+          }
+          
+          // Always throw an error to trigger fallback, regardless of status code
           throw new Error(errorData.error || `Server error: HTTP ${response.status}`);
         }
       } catch (error) {
