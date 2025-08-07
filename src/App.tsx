@@ -51,30 +51,32 @@ export default function App() {
     )
   }
 
-  // Show auth form if user is not authenticated
-  if (!user || !profile) {
-    return <AuthForm onSuccess={() => {}} />
-  }
-
-  // Show dashboard with routing for authenticated users
+  // Main router - always accessible
   return (
     <Router>
       <div className="min-h-screen bg-gray-50">
         <Routes>
-          <Route 
-            path="/" 
-            element={
-              <Dashboard 
-                signals={signals}
-                onSignalUpdate={fetchSignals}
-                isLoadingSignals={isLoadingSignals}
-                userProfile={profile}
-              />
-            } 
-          />
+          {/* Public routes - accessible without authentication */}
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/success" element={<PaymentSuccess />} />
           <Route path="/cancel" element={<PricingPage />} />
+          
+          {/* Protected routes - require authentication */}
+          <Route 
+            path="/" 
+            element={
+              !user || !profile ? (
+                <AuthForm onSuccess={() => {}} />
+              ) : (
+                <Dashboard 
+                  signals={signals}
+                  onSignalUpdate={fetchSignals}
+                  isLoadingSignals={isLoadingSignals}
+                  userProfile={profile}
+                />
+              )
+            } 
+          />
         </Routes>
       </div>
     </Router>

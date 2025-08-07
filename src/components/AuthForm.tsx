@@ -256,16 +256,26 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
         </div>
 
         {/* Additional Links */}
-        {isLogin && (
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              className="text-sm text-gray-500 hover:text-gray-700"
+        <div className="mt-4 text-center space-y-2">
+          <div>
+            <a
+              href="/pricing"
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
             >
-              Forgot your password?
-            </button>
+              View Pricing Plans
+            </a>
           </div>
-        )}
+          {isLogin && (
+            <div>
+              <button
+                type="button"
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                Forgot your password?
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
