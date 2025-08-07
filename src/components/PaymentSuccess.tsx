@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, XCircle, Clock, ArrowLeft } from 'lucide-react';
-import { verifyStripeSession, updateUserSubscription } from '../services/PaymentVerificationService';
 import { useAuth } from '../hooks/useAuth';
 
 export const PaymentSuccess: React.FC = () => {
@@ -23,24 +22,26 @@ export const PaymentSuccess: React.FC = () => {
       }
 
       try {
-        // Verify the Stripe session
-        const sessionData = await verifyStripeSession(sessionId);
+        // Verify the PayMongo session
+        const response = await fetch('/api/verify-paymongo-session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            session_id: sessionId,
+            user_id: user?.id
+          })
+        });
+
+        const result = await response.json();
         
-        if (sessionData.payment_status === 'paid' && user) {
-          // Update user subscription
-          await updateUserSubscription(user.id, {
-            tier: planType === 'vip' ? 'vip' : 'premium',
-            status: 'active',
-            endDate: sessionData.subscription_end_date,
-            stripeCustomerId: sessionData.customer_id,
-            stripeSubscriptionId: sessionData.subscription_id
-          });
-          
+        if (result.success) {
           setStatus('success');
-          setMessage('Payment successful! Your premium features are now active.');
+          setMessage(`Payment successful! Your ${result.plan} subscription is now active.`);
         } else {
           setStatus('error');
-          setMessage('Payment verification failed. Please contact support.');
+          setMessage(result.error || 'Payment verification failed. Please contact support.');
         }
       } catch (error) {
         console.error('Payment processing error:', error);

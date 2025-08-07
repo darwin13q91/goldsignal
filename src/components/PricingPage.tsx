@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Crown, DollarSign, Zap, Check, X } from 'lucide-react';
+import { payMongoService } from '../services/PayMongoService';
+import { useAuth } from '../hooks/useAuth';
 
 interface PricingPlan {
   id: string;
@@ -10,7 +12,7 @@ interface PricingPlan {
   features: string[];
   limitations?: string[];
   popular?: boolean;
-  stripePriceId: string;
+  currency: string;
 }
 
 const pricingPlans: PricingPlan[] = [
@@ -19,8 +21,9 @@ const pricingPlans: PricingPlan[] = [
     name: 'Free',
     price: 0,
     interval: 'month',
+    currency: 'PHP',
     features: [
-      '5 signals per month',
+      '3 signals per week',
       'Basic email notifications',
       'Community access',
       'Basic market data'
@@ -29,50 +32,50 @@ const pricingPlans: PricingPlan[] = [
       'Limited signal history',
       'No real-time alerts',
       'No advanced analytics'
-    ],
-    stripePriceId: ''
+    ]
   },
   {
     id: 'premium',
     name: 'Premium',
-    price: 47,
-    originalPrice: 97,
+    price: 1450,
+    originalPrice: 2900,
     interval: 'month',
     popular: true,
+    currency: 'PHP',
     features: [
-      'Unlimited signals',
-      'Real-time email & SMS alerts',
-      'Advanced analytics dashboard',
-      'Signal performance tracking',
-      'Risk management tools',
-      'Priority support',
-      'Mobile app access'
-    ],
-    stripePriceId: 'price_premium_monthly'
+      'Up to 5 premium signals daily',
+      'Entry, SL, and TP levels',
+      'Real-time email notifications',
+      'Basic performance analytics',
+      'GCash & PayMaya support',
+      '24/7 customer support',
+      'Mobile-optimized dashboard'
+    ]
   },
   {
     id: 'vip',
     name: 'VIP',
-    price: 197,
-    originalPrice: 397,
+    price: 4950,
+    originalPrice: 9900,
     interval: 'month',
+    currency: 'PHP',
     features: [
-      'Everything in Premium',
-      '1-on-1 monthly consultation',
-      'Custom signal requests',
-      'WhatsApp/Telegram alerts',
-      'Trading course access ($297 value)',
-      'Live trading sessions',
-      'Personal trading mentor',
+      'Unlimited premium signals',
+      'Advanced market analysis',
+      'Priority email & SMS alerts',
+      'Detailed performance analytics',
+      'Copy trading signals',
+      'VIP Telegram group access',
+      'Priority customer support',
       'API access for automation'
-    ],
-    stripePriceId: 'price_vip_monthly'
+    ]
   }
 ];
 
 export const PricingPage: React.FC = () => {
   const [isAnnual, setIsAnnual] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
+  const { user } = useAuth();
 
   const handleSubscribe = async (plan: PricingPlan) => {
     if (plan.id === 'free') return;
@@ -80,32 +83,22 @@ export const PricingPage: React.FC = () => {
     setLoading(plan.id);
     
     try {
-      // Redirect to Stripe Checkout
-      const stripe = await import('@stripe/stripe-js').then(m => 
-        m.loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
+      if (!user) {
+        alert('Please login first to subscribe');
+        setLoading(null);
+        return;
+      }
+
+      const checkoutUrl = await payMongoService.createCheckoutSession(
+        plan.id as 'premium' | 'vip',
+        user.id
       );
       
-      if (!stripe) throw new Error('Stripe failed to load');
-      
-      const { error } = await stripe.redirectToCheckout({
-        lineItems: [{ 
-          price: plan.stripePriceId,
-          quantity: 1 
-        }],
-        mode: 'subscription',
-        successUrl: `${window.location.origin}/success?plan=${plan.id}`,
-        cancelUrl: `${window.location.origin}/pricing`,
-        billingAddressCollection: 'required'
-      });
-      
-      if (error) {
-        console.error('Stripe error:', error);
-        alert('Payment failed. Please try again.');
-      }
+      // Redirect to PayMongo checkout
+      window.location.href = checkoutUrl;
     } catch (error) {
       console.error('Subscription error:', error);
       alert('Something went wrong. Please try again.');
-    } finally {
       setLoading(null);
     }
   };
@@ -113,6 +106,8 @@ export const PricingPage: React.FC = () => {
   const getDiscountedPrice = (price: number) => {
     return isAnnual ? Math.round(price * 12 * 0.8) : price; // 20% annual discount
   };
+
+  const paymentMethods = payMongoService.getSupportedPaymentMethods();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-12">
@@ -190,11 +185,11 @@ export const PricingPage: React.FC = () => {
                   <div className="mb-4">
                     {plan.originalPrice && (
                       <span className="text-lg text-gray-400 line-through mr-2">
-                        ${isAnnual ? plan.originalPrice * 12 : plan.originalPrice}
+                        ₱{(isAnnual ? plan.originalPrice * 12 : plan.originalPrice).toLocaleString()}
                       </span>
                     )}
                     <span className="text-4xl font-bold text-gray-900">
-                      ${plan.price === 0 ? '0' : getDiscountedPrice(plan.price)}
+                      {plan.price === 0 ? 'FREE' : `₱${getDiscountedPrice(plan.price).toLocaleString()}`}
                     </span>
                     {plan.price > 0 && (
                       <span className="text-gray-600">
@@ -205,7 +200,7 @@ export const PricingPage: React.FC = () => {
                   
                   {plan.originalPrice && (
                     <div className="text-green-600 font-semibold">
-                      Save ${(plan.originalPrice - plan.price) * (isAnnual ? 12 : 1)}
+                      Save ₱{((plan.originalPrice - plan.price) * (isAnnual ? 12 : 1)).toLocaleString()}
                       {isAnnual ? '/year' : '/month'}
                     </div>
                   )}
@@ -302,6 +297,30 @@ export const PricingPage: React.FC = () => {
               <div className="text-sm text-gray-500">VIP Member</div>
             </div>
           </div>
+        </div>
+
+        {/* Payment Methods */}
+        <div className="mt-16 text-center">
+          <h3 className="text-2xl font-bold text-gray-900 mb-8">
+            Secure Payment Methods for Philippines
+          </h3>
+          <div className="flex justify-center items-center space-x-8 mb-8">
+            {paymentMethods.map((method) => (
+              <div key={method.id} className="flex flex-col items-center">
+                <div className="text-4xl mb-2">{method.logo}</div>
+                <span className={`text-sm ${method.popular ? 'font-semibold text-blue-600' : 'text-gray-600'}`}>
+                  {method.name}
+                </span>
+                {method.popular && (
+                  <span className="text-xs text-green-600 mt-1">Popular</span>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="text-gray-600 max-w-2xl mx-auto">
+            Pay securely with your preferred method. All transactions are encrypted and protected. 
+            Most Filipinos prefer GCash and PayMaya for instant, secure payments.
+          </p>
         </div>
 
         {/* FAQ Section */}
