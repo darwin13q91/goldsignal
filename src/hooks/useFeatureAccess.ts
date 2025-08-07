@@ -28,7 +28,6 @@ const TIER_FEATURES: Record<SubscriptionTier, FeatureType[]> = {
     'unlimited_signals',
     'analytics', 
     'real_time_alerts',
-    'subscriber_management',
     'custom_signals',
     'consultation',
     'whatsapp_alerts',

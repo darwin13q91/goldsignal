@@ -8,6 +8,7 @@ import { NotificationCenter } from './NotificationCenter'
 import { UserProfileSettings } from './UserProfileSettings'
 import { useAuth } from '../hooks/useAuth'
 import { useFeatureAccess } from '../hooks/useFeatureAccess'
+import { useAdminAccess } from '../hooks/useAdminAccess'
 import { useSignalMonitor } from '../hooks/useSignalMonitor'
 import TwelveDataService from '../services/TwelveDataService'
 import { enhanceSignalsWithStatus, getEnhancedStatusColor, type EnhancedSignal } from '../utils/signalStatus'
@@ -78,6 +79,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [apiQuotaExhausted, setApiQuotaExhausted] = useState(true) // EMERGENCY: Force quota exhausted state
   const { signOut } = useAuth()
   const { hasAccess } = useFeatureAccess()
+  const { hasAdminAccess } = useAdminAccess()
 
   // Monitor signals for automatic TP/SL alerts
   useSignalMonitor({ signals, onSignalUpdate })
@@ -362,7 +364,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                   <User className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-sm text-gray-700">{userProfile.subscription_tier.toUpperCase()}</span>
+                <div className="flex flex-col">
+                  <span className="text-sm text-gray-700">{userProfile.subscription_tier.toUpperCase()}</span>
+                  {userProfile.user_role && userProfile.user_role !== 'user' && (
+                    <span className="text-xs text-red-600 font-semibold">
+                      {userProfile.user_role.toUpperCase().replace('_', ' ')}
+                    </span>
+                  )}
+                </div>
               </div>
               <button
                 onClick={signOut}
@@ -824,24 +833,24 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         {activeTab === 'subscribers' && (
           <>
-            {hasAccess('subscriber_management') ? (
+            {hasAdminAccess() ? (
               <SubscriberManager currentUser={userProfile} />
             ) : (
               <div className="text-center py-12">
-                <div className="bg-gradient-to-br from-purple-50 to-pink-100 rounded-xl p-8 max-w-md mx-auto">
-                  <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <div className="bg-gradient-to-br from-red-50 to-orange-100 rounded-xl p-8 max-w-md mx-auto">
+                  <div className="w-16 h-16 bg-gradient-to-r from-red-500 to-orange-600 rounded-full flex items-center justify-center mx-auto mb-6">
                     <Users className="w-8 h-8 text-white" />
                   </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-3">Subscriber Management</h3>
+                  <h3 className="text-xl font-bold text-gray-900 mb-3">Admin Access Required</h3>
                   <p className="text-gray-600 mb-6">
-                    Manage your subscriber base, view analytics, and grow your trading community with advanced tools.
+                    Subscriber management is only available to system administrators. Contact the system owner for admin access.
                   </p>
-                  <button
-                    onClick={() => setIsUpgradeModalOpen(true)}
-                    className="bg-gradient-to-r from-purple-500 to-pink-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-purple-600 hover:to-pink-700 transition-all duration-200"
-                  >
-                    Upgrade to VIP
-                  </button>
+                  <div className="mt-4 p-3 bg-orange-100 border border-orange-300 rounded-lg">
+                    <p className="text-orange-800 text-sm">
+                      <strong>Note:</strong> This feature is restricted to system administrators only. 
+                      Regular subscribers cannot access user management regardless of subscription tier.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}

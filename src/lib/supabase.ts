@@ -18,6 +18,7 @@ export interface Database {
           subscription_tier: 'free' | 'basic' | 'premium' | 'vip'
           subscription_status: 'active' | 'canceled' | 'past_due'
           subscription_end_date?: string
+          user_role: 'user' | 'admin'
           created_at: string
           updated_at: string
         }
@@ -29,6 +30,7 @@ export interface Database {
           subscription_tier?: 'free' | 'basic' | 'premium' | 'vip'
           subscription_status?: 'active' | 'canceled' | 'past_due'
           subscription_end_date?: string
+          user_role?: 'user' | 'admin'
           created_at?: string
           updated_at?: string
         }
@@ -40,6 +42,7 @@ export interface Database {
           subscription_tier?: 'free' | 'basic' | 'premium' | 'vip'
           subscription_status?: 'active' | 'canceled' | 'past_due'
           subscription_end_date?: string
+          user_role?: 'user' | 'admin'
           updated_at?: string
         }
       }
